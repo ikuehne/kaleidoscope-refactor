@@ -1,28 +1,16 @@
-CC=gcc
-CXX=g++
-LLVM_CMD = llvm-config --cxxflags --ldflags --system-libs --libs core
-CPPFLAGS=-g $(shell $(LLVM_CMD)) -std=c++14 
-RELEASE_FLAGS=-O2
-DEBUG_FLAGS=-g
+CC=clang++
+CXX=clang++
 
-COMPILER_SRCS = AST.cpp Lexer.cpp Parser.cpp CodeGenerator.cpp
+CPPFLAGS=-g $(shell llvm-config --cxxflags) -Wall -Wpedantic -std=c++14 
+LDFLAGS=$(shell llvm-config --ldflags --system-libs --libs core)
 
-PARSER_DEMO_OBJS=$(subst .cpp,.o,$(parser_demo_srcs))
-parser_demo_srcs = $(COMPILER_SRCS) parser_demo.cpp
-codegen_demo_srcs = $(COMPILER_SRCS) codegen_demo.cpp
+COMPILER_OBJS=AST.o CodeGenerator.o Lexer.o Parser.o
 
 all: parser_demo
 
-parser_demo: $(PARSER_DEMO_OBJS)
-	$(CXX) $(CPP_FLAGS) $(DEBUG_FLAGS) -o parser_demo $(PARSER_DEMO_OBJS) 
+parser_demo: $(COMPILER_OBJS) parser_demo.o
 
-parser_demo_depend: .parser_demo_depend
-
-.parser_demo_depend: $(parser_demo_srcs)
-	rm -rf ./.parser_demo_depend
-	$(CXX) $(DEBUG_FLAGS) $(CPPFLAGS) -MM $^>>./.parser_demo_depend;
+codegen_demo: $(COMPILER_OBJS) codegen_demo.o
 
 clean:
-	$(RM) $(OBJS)
-
-include .parser_demo_depend
+	$(RM) *.o parser_demo codegen_demo
