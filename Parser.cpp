@@ -17,19 +17,19 @@ static const std::map<char, int> BINOP_PRECEDENCE {
 
 /// GetTokPrecedence - Get the precedence of the pending binary operator token.
 int Parser::get_token_precedence(void) const {
-  if (!isascii(cur_token))
-    return -1;
+    if (!isascii(cur_token))
+        return -1;
 
-  // Make sure it's a declared binop.
-  int result = BINOP_PRECEDENCE.find(cur_token)->second;
+    if (BINOP_PRECEDENCE.count(cur_token) == 0) return -1;
 
-  if (result <= 0) return -1;
+    // Make sure it's a declared binop.
+    int result = BINOP_PRECEDENCE.find(cur_token)->second;
 
-  return result;
+    return result;
 }
 
 static std::unique_ptr<AST::Expression> log_error(const char *str) {
-    std::cerr << "Kaleidoscope::Paser::log_error: "
+    std::cerr << "Kaleidoscope::Parser::log_error: "
               << str << std::endl;
     return nullptr;
 }
@@ -41,6 +41,7 @@ static std::unique_ptr<AST::FunctionPrototype> log_error_p(const char *s) {
 
 Parser::Parser(std::istream *input) {
     lexer = Lexer(input);
+    shift_token();
 }
 
 int Parser::shift_token(void) {
@@ -112,7 +113,7 @@ std::unique_ptr<AST::Expression> Parser::parse_primary(void) {
         case '(':
             return parse_parens();
         default:
-            return log_error("Unkown token when expecting expression.");
+            return log_error("Unknown token when expecting expression.");
     }
 }
 
@@ -197,9 +198,32 @@ std::unique_ptr<AST::FunctionDefinition> Parser::parse_top_level(void) {
     return nullptr; 
 }
 
+std::unique_ptr<AST::Toplevel> Parser::parse(void) {
+    std::unique_ptr<AST::Toplevel> result;
+    switch (cur_token) {
+    case tok_eof:
+        return nullptr;
+    case ';': // ignore top-level semicolons.
+        shift_token();
+        break;
+    case tok_def:
+        result = parse_definition();
+        break;
+    case tok_extern:
+        result = parse_extern();
+        break;
+    default:
+        result = parse_top_level();
+        break;
+    }
+
+    if (!result) shift_token();
+
+    return result;
+}
+
 void Parser::handle_definition(void) {
     if (parse_definition()) {
-        std::cerr << "Parsed a function definition." << std::endl;
     } else {
         // Skip token for error recovery.
         shift_token();
@@ -208,7 +232,6 @@ void Parser::handle_definition(void) {
 
 void Parser::handle_extern(void) {
     if (parse_extern()) {
-            std::cerr << "Parsed an extern" << std::endl;
     } else {
         // Skip token for error recovery.
         shift_token();
@@ -218,7 +241,6 @@ void Parser::handle_extern(void) {
 void Parser::handle_top_level(void) {
     // Evaluate a top-level expression into an anonymous function.
     if (parse_top_level()) {
-        std::cerr << "Parsed a top-level expr" << std::endl;
     } else {
         // Skip token for error recovery.
         shift_token();
@@ -250,8 +272,11 @@ void Parser::main_loop() {
 
 void Parser::demo(void) {
     std::cerr << "ready> ";
-    shift_token();
     main_loop();
+}
+
+bool Parser::reached_end(void) const {
+    return cur_token == tok_eof;
 }
 
 }

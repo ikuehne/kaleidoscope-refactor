@@ -1,4 +1,10 @@
 #include "AST.hh"
+#include "CodeGenerator.hh"
+
+#define HOST_OVERRIDE(_class) llvm::Value *\
+    _class::host_generator(CodeGenerator &cg) const {\
+        return cg.codegen_value(*this);\
+    }
 
 namespace Kaleidoscope {
 namespace AST {
@@ -13,6 +19,8 @@ double NumberLiteral::get(void) const {
     return val;
 }
 
+HOST_OVERRIDE(NumberLiteral)
+
 /*****************************************************************************
  * VariableName implementations.
  */
@@ -22,6 +30,8 @@ VariableName::VariableName(const std::string &name): name(name) {}
 std::string VariableName::get(void) const {
     return name;
 }
+
+HOST_OVERRIDE(VariableName)
 
 /*****************************************************************************
  * BinaryOp implementations.
@@ -41,6 +51,8 @@ const Expression &BinaryOp::get_rhs(void) const {
     return *rhs;
 }
 
+HOST_OVERRIDE(BinaryOp)
+
 /*****************************************************************************
  * FunctionCall implementations.
  */
@@ -50,9 +62,14 @@ FunctionCall::FunctionCall(const std::string &name,
     : fname(name), args(std::move(args)) {}
 
 std::string FunctionCall::get_name(void) const { return fname; }
+
 const std::vector<std::unique_ptr<Expression>> &
       FunctionCall::get_args(void) const {
     return args;
+}
+
+llvm::Value *FunctionCall::host_generator(CodeGenerator &cg) const {
+    return cg.codegen_value(*this);
 }
 
 /*****************************************************************************
@@ -71,6 +88,10 @@ std::vector<std::string> FunctionPrototype::get_args(void) const {
     return args;
 }
 
+llvm::Function *FunctionPrototype::host_generator(CodeGenerator &cg) const {
+    return cg.codegen_func(*this);
+}
+
 /*****************************************************************************
  * FunctionDefinition implementations.
  */
@@ -86,6 +107,10 @@ const FunctionPrototype &FunctionDefinition::get_prototype(void) const {
 
 const Expression &FunctionDefinition::get_body(void) const {
     return *body;
+}
+
+llvm::Function *FunctionDefinition::host_generator(CodeGenerator &cg) const {
+    return cg.codegen_func(*this);
 }
 
 

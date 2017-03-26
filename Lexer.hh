@@ -20,6 +20,7 @@ enum Token {
 
 class Lexer {
 public:
+
     /**
      * @brief Create a new lexer based on the given input stream.
      *

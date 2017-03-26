@@ -1,3 +1,5 @@
 parser_demo
 *.o
-.depend
+.*depend
+*.swp
+.ycm_extra*

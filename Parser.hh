@@ -22,9 +22,6 @@ private:
     void handle_top_level(void);
     void main_loop(void);
 
-public:
-    Parser(std::istream *input = &std::cin);
-
     std::unique_ptr<AST::Expression> parse_number(void);
     std::unique_ptr<AST::Expression> parse_parens(void);
     std::unique_ptr<AST::Expression> parse_identifier(void);
@@ -36,7 +33,13 @@ public:
     std::unique_ptr<AST::FunctionPrototype> parse_extern(void);
 
     std::unique_ptr<AST::FunctionDefinition> parse_top_level(void);
+
+public:
+    Parser(std::istream *input = &std::cin);
+    std::unique_ptr<AST::Toplevel> parse(void);
+    bool reached_end(void) const;
     void demo(void);
+
 };
 
 }
