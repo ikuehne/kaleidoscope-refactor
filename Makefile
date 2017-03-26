@@ -8,10 +8,10 @@ DEBUG_FLAGS=-g
 OBJS=$(subst .cpp,.o,$(SRCS))
 SRCS=$(wildcard *.cpp)
 
-all: demo
+all: parser_demo
 
-demo: $(OBJS)
-	$(CXX) $(DEBUG_FLAGS) -o demo $(OBJS)
+parser_demo: $(OBJS)
+	$(CXX) $(DEBUG_FLAGS) -o parser_demo $(OBJS)
 
 depend: .depend
 
