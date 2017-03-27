@@ -13,11 +13,24 @@
 
 namespace Kaleidoscope {
 
+/**
+ * @brief Visit AST nodes and convert them to an LLVM AST.
+ */
 class CodeGenerator {
 
 public:
-
+    /**
+     * @brief Create a `CodeGenerator` appending definitions to a module with
+     *        the given name.
+     */
     CodeGenerator(std::string name);
+
+    /**
+     * @name Visitors
+     *
+     * Methods for visiting AST nodes.
+     */
+    /**@{*/
 
     llvm::Value *codegen_value(const AST::NumberLiteral &);
     llvm::Value *codegen_value(const AST::VariableName &);
@@ -27,6 +40,11 @@ public:
     llvm::Function *codegen_func(const AST::FunctionPrototype &);
     llvm::Function *codegen_func(const AST::FunctionDefinition &);
 
+    /**@}*/
+
+    /**
+     * @brief Emit LLVM IR to the given output stream.
+     */
     void emit(std::ostream &);
 
 private:
