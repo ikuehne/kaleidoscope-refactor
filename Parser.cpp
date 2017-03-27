@@ -6,8 +6,11 @@
 
 namespace Kaleidoscope {
 
-/// BinopPrecedence - This holds the precedence for each binary operator that
-// is defined.
+/*****************************************************************************
+ * Utilities.
+ */
+
+/** Associate operators with their precedence. */
 static const std::map<char, int> BINOP_PRECEDENCE {
     {'<', 10},
     {'+', 20},
@@ -15,11 +18,12 @@ static const std::map<char, int> BINOP_PRECEDENCE {
     {'*', 40},
 };
 
-/// GetTokPrecedence - Get the precedence of the pending binary operator token.
+/* Look up the precedence of the current token. */
 int Parser::get_token_precedence(void) const {
     if (!isascii(cur_token))
         return -1;
 
+    /* Can't just use operator[] because `BINOP_PRECEDENCE` is `const`. */
     if (BINOP_PRECEDENCE.count(cur_token) == 0) return -1;
 
     // Make sure it's a declared binop.
@@ -28,12 +32,14 @@ int Parser::get_token_precedence(void) const {
     return result;
 }
 
+/* Log an error to stderr, and return an error code. */
 static std::unique_ptr<AST::Expression> log_error(const char *str) {
     std::cerr << "Kaleidoscope::Parser::log_error: "
               << str << std::endl;
     return nullptr;
 }
 
+/* Log an error to stderr, and return an error code. */
 static std::unique_ptr<AST::FunctionPrototype> log_error_p(const char *s) {
     log_error(s);
     return nullptr;
@@ -45,6 +51,7 @@ Parser::Parser(std::istream *input) {
 }
 
 int Parser::shift_token(void) {
+    /* `cur_token` gives us 1 token of lookahead. */
     cur_token = lexer.get_token();
     return cur_token;
 }
@@ -56,43 +63,53 @@ std::unique_ptr<AST::Expression> Parser::parse_number(void) {
     return std::move(result);
 }
 
-/// parenexpr ::= '(' expression ')'
 std::unique_ptr<AST::Expression> Parser::parse_parens(void) {
+    /* Shift the opening paren. */
   	shift_token();
+    /* Get the body of the expression. */
     auto contents = parse_expression();
-    if (!contents)
-        return nullptr;
 
-    if (cur_token != ')')
-        return log_error("expected ')'");
+    if (!contents) return nullptr;
 
-    // Eat the closing parens.
+    /* If it didn't end in a close paren, error. */
+    if (cur_token != ')') return log_error("expected ')'");
+
+    /* Shift the closing paren. */
     shift_token();
     return contents;
 }
 
 std::unique_ptr<AST::Expression> Parser::parse_identifier(void) {
+    /* Get the identifier. */
     std::string id = lexer.get_identifier();
-    shift_token();    // eat identifier.
 
-    if (cur_token != '(') // Simple variable ref.
+    /* Shift the identifier. */
+    shift_token();
+
+    /* Unless this is a function call, */
+    if (cur_token != '(')
+        /* it's a variable. */
         return std::make_unique<AST::VariableName>(id);
 
-    // Call.
-    shift_token();    // eat (
+    /* If it is a function call, shift the opening paren.*/
+    shift_token();
+    /* Collect an argument vector. */
     std::vector<std::unique_ptr<AST::Expression>> args;
+    /* (unless there are no arguments). */
     if (cur_token != ')') {
         while (1) {
-            if (auto arg = parse_expression())
+            if (auto arg = parse_expression()) {
                 args.push_back(std::move(arg));
-            else
+            } else {
                 return nullptr;
+            }
 
-            if (cur_token == ')')
-                break;
+            if (cur_token == ')') break;
 
-            if (cur_token != ',')
+            if (cur_token != ',') {
                 return log_error("Expected ')' or ',' in argument list");
+            }
+
             shift_token();
         }
     }
@@ -128,13 +145,22 @@ std::unique_ptr<AST::Expression>
 
     while (true) {
         int op_prec = get_token_precedence();
+
         /* If the precedence on the right is lower than on the left, return
          * the expression on the left. */
         if (op_prec < prec) return lhs;
+
+        /* Save and shift the current token. */
         int op = cur_token;
         shift_token();
+
+        /* Parse the right-hand side. */
         auto rhs = parse_primary();
         if (!rhs) return nullptr;
+
+        /* Check the precedence of the next operator.  (Note that if the next
+         * token is *not* an operator, `get_token_precedence` will return -1).
+        */
         int next_prec = get_token_precedence();
         if (op_prec < next_prec) {
             rhs = parse_binop_rhs(op_prec + 1, std::move(rhs));
@@ -157,45 +183,53 @@ std::unique_ptr<AST::FunctionPrototype> Parser::parse_prototype(void) {
     if (cur_token != '(')
         return log_error_p("Expected '(' in prototype");
 
-    // Read the list of argument names.
+    /* Read the list of argument names. */
     std::vector<std::string> args;
     while (shift_token() == tok_identifier)
         args.push_back(lexer.get_identifier());
     if (cur_token != ')')
         return log_error_p("Expected ')' in prototype");
 
-    // success.
-    shift_token();    // eat ')'.
+    /* Shift the closing parenthesis. */
+    shift_token();
 
     return std::make_unique<AST::FunctionPrototype>(fname, std::move(args));
 }
 
 std::unique_ptr<AST::FunctionDefinition> Parser::parse_definition(void) {
-    shift_token();  // eat def.
+    /* Shift "def". */
+    shift_token();
+    /* Get the prototype. */
     auto proto = parse_prototype();
     if (!proto) return nullptr;
 
-    if (auto expr = parse_expression())
-        return std::make_unique<AST::FunctionDefinition>(std::move(proto),
-                                                         std::move(expr));
+    /* Get the body. */
+    auto body = parse_expression();
+    if (!body) return nullptr;
 
-    return nullptr;
+
+    return std::make_unique<AST::FunctionDefinition>(std::move(proto),
+                                                     std::move(body));
 }
 
 std::unique_ptr<AST::FunctionPrototype> Parser::parse_extern(void) {
+    /* Shift "extern". */
     shift_token();
+    /* Other than that, an extern is a normal prototype.*/
     return parse_prototype();
 }
 
 std::unique_ptr<AST::FunctionDefinition> Parser::parse_top_level(void) {
-    if (auto expr = parse_expression()) {
-        // Make an anonymous proto.
-        auto proto = std::make_unique<AST::FunctionPrototype>(
-			   "", std::vector<std::string>());
-        return std::make_unique<AST::FunctionDefinition>(std::move(proto),
-														 std::move(expr));
-    }
-    return nullptr; 
+    /* Parse the expression. */
+    auto expr = parse_expression();
+    if (!expr) return nullptr;
+
+    /* Turn it into the body of an anonymous prototype. */
+    auto proto =
+        std::make_unique<AST::FunctionPrototype>("",
+                                                 std::vector<std::string>());
+    return std::make_unique<AST::FunctionDefinition>(std::move(proto),
+                                                     std::move(expr));
 }
 
 std::unique_ptr<AST::Toplevel> Parser::parse(void) {
@@ -222,6 +256,10 @@ std::unique_ptr<AST::Toplevel> Parser::parse(void) {
     return result;
 }
 
+/*****************************************************************************
+ * Demo stuff.
+ */
+
 void Parser::handle_definition(void) {
     if (parse_definition()) {
     } else {
@@ -247,14 +285,13 @@ void Parser::handle_top_level(void) {
     }
 }
 
-/// top ::= definition | external | expression | ';'
 void Parser::main_loop() {
     while (true) {
         std::cerr << "ready> ";
         switch (cur_token) {
         case tok_eof:
             return;
-        case ';': // ignore top-level semicolons.
+        case ';':
             shift_token();
             break;
         case tok_def:

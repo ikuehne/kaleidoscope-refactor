@@ -12,32 +12,40 @@ int Lexer::get_token(void) {
         last_char = input->get();
     }
 
-    if (isalpha(last_char)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
+    /* An identifier starts with an alphanumeric character, */
+    if (isalpha(last_char)) {
         identifier = last_char;
+        /* and continues with alphanumeric characters. */
         for (last_char = input->get();
              isalnum(last_char);
              last_char = input->get()) {
+            /* Collect the name of the identifier. */
             identifier += last_char;
         }
 
+        /* Could be a definition, */
         if (identifier == "def")
             return tok_def;
+        /* an extern declaration, */
         if (identifier == "extern")
             return tok_extern;
+        /* or an identifier. */
         return tok_identifier;
     }
 
-    if (isdigit(last_char) || last_char == '.') {   // Number: [0-9.]+
+    /* Numbers consist of digits and decimals. */
+    if (isdigit(last_char) || last_char == '.') {
         std::string number_string;
         do {
             number_string += last_char;
             last_char = input->get();
         } while (isdigit(last_char) || last_char == '.');
+        /* Store the lexed number as a float. */
         number = strtod(number_string.c_str(), 0);
         return tok_number;
     }
 
-    // Skip comments until the end of the line.
+    /* Skip comments until the end of the line. */
     if (last_char == '#') {
         do {
             last_char = input->get();
@@ -50,6 +58,7 @@ int Lexer::get_token(void) {
 
     if (last_char == EOF) return tok_eof;
 
+    /* If unknown, just return the character. */
     int this_char = last_char;
     last_char = input->get();
     return this_char;

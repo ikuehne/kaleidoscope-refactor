@@ -113,6 +113,6 @@ llvm::Function *FunctionDefinition::host_generator(CodeGenerator &cg) const {
     return cg.codegen_func(*this);
 }
 
-
 }
+
 }

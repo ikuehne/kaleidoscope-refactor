@@ -29,16 +29,19 @@ CodeGenerator::CodeGenerator(std::string name)
       module(llvm::make_unique<llvm::Module>(name, context)) {}
 
 llvm::Value *CodeGenerator::codegen_value(const AST::NumberLiteral &num) {
+    /* Create a floating-point constant with this value in this context. */
     return llvm::ConstantFP::get(context, llvm::APFloat(num.get()));
 }
 
 llvm::Value *CodeGenerator::codegen_value(const AST::VariableName &var) {
+    /* Just look up the value corresponding to this name, and return that. */
     auto result = names[var.get()];
     if (!result) return log_error("Unknown variable name");
     return result;
 }
 
 llvm::Value *CodeGenerator::codegen_value(const AST::BinaryOp &op) {
+    /* Get the LLVM values for left and right. */
     llvm::Value *l = op.get_lhs().host_generator(*this);
     llvm::Value *r = op.get_rhs().host_generator(*this);
     if (!l || !r) return nullptr;
@@ -52,7 +55,7 @@ llvm::Value *CodeGenerator::codegen_value(const AST::BinaryOp &op) {
         return builder.CreateFMul(l, r, "multmp");
     case '<':
         l = builder.CreateFCmpULT(l, r, "cmptmp");
-        // Convert bool 0/1 to double 0.0 or 1.0
+        /* Convert bool 0/1 to double 0.0 or 1.0 */
         return builder.CreateUIToFP(
                 l, llvm::Type::getDoubleTy(context), "booltmp");
     default:
@@ -61,12 +64,12 @@ llvm::Value *CodeGenerator::codegen_value(const AST::BinaryOp &op) {
 }
 
 llvm::Value *CodeGenerator::codegen_value(const AST::FunctionCall &call) {
-	// Look up the name in the global module table.
+	/* Look up the name in the global module table. */
     llvm::Function *llvm_func = module->getFunction(call.get_name());
 	if (!llvm_func)
 		return log_error("Unknown function referenced");
 
-    // If argument mismatch error.
+    /* Log argument mismatch error. */
     if (llvm_func->arg_size() != call.get_args().size())
         return log_error("Incorrect # arguments passed");
 
