@@ -6,18 +6,29 @@
 
 namespace Kaleidoscope {
 
+/**
+ * @brief Identifies known tokens.  See `Lexer::get_token`.
+ */
 enum Token {
+    /** End of input has been reached. */
     tok_eof = -1,
 
-    // commands
+    /** Function definition. */
     tok_def = -2,
+
+    /** Extern declaration. */
     tok_extern = -3,
 
-    // primary
+    /** Identifier (variable or function name). */
     tok_identifier = -4,
+
+    /** Floating-point literal. */
     tok_number = -5,
 };
 
+/**
+ * @brief Lexer over an input stream.
+ */
 class Lexer {
 public:
 
