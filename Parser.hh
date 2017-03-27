@@ -7,6 +7,9 @@
 
 namespace Kaleidoscope {
 
+/**
+ * @brief A parser parameterized on an input stream.
+ */
 class Parser {
 private:
     int cur_token;
@@ -36,10 +39,20 @@ private:
 
 public:
     Parser(std::istream *input = &std::cin);
+
+    /**
+     * @brief Parse and return a top-level AST node.
+     *
+     * Returns `nullptr` and prints a message to std::cerr in case of an
+     * error.  Returns `nullptr` in case of EOF.
+     */
     std::unique_ptr<AST::Toplevel> parse(void);
+
+    /**
+     * @brief Have we reached the end of the input stream?
+     */
     bool reached_end(void) const;
     void demo(void);
-
 };
 
 }
