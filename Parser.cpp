@@ -16,6 +16,7 @@ static const std::map<char, int> BINOP_PRECEDENCE {
     {'+', 20},
     {'-', 20},
     {'*', 40},
+    {'/', 40},
 };
 
 /* Look up the precedence of the current token. */

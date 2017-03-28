@@ -1,4 +1,6 @@
+#include <fcntl.h>
 #include <iostream>
+#include <unistd.h>
 
 #include "AST.hh"
 #include "Parser.hh"
@@ -18,5 +20,7 @@ int main(void) {
         handle_input(parser, codegen);
     }
 
-    codegen.emit_ir(std::cout);
+    int fd = open("a.out", O_RDWR | O_CREAT);
+    codegen.emit_obj(fd);
+    close(fd);
 }

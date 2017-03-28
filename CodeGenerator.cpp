@@ -3,16 +3,22 @@
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/TargetRegistry.h"
+#include "llvm/Target/TargetOptions.h"
 
 #include "CodeGenerator.hh"
 
@@ -24,9 +30,42 @@ static llvm::Value *log_error(const char *str) {
     return nullptr;
 }
 
-CodeGenerator::CodeGenerator(std::string name)
+CodeGenerator::CodeGenerator(std::string name,
+                             std::string triple)
     : builder(context),
-      module(llvm::make_unique<llvm::Module>(name, context)) {}
+      module(llvm::make_unique<llvm::Module>(name, context)) {
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmParsers();
+    llvm::InitializeAllAsmPrinters();
+
+	std::string error;
+	auto target_triple = llvm::Triple(triple);
+	/* TODO: Allow target-specific information. */
+    auto llvm_target =
+        llvm::TargetRegistry::lookupTarget("", target_triple, error);
+
+	// Print an error and exit if we couldn't find the requested target.
+	// This generally occurs if we've forgotten to initialise the
+	// TargetRegistry or we have a bogus target triple.
+
+	/* TODO: fix this to properly handle the error. */
+	if (!llvm_target) {
+	    llvm::errs() << error;
+	}
+
+    /* TODO: give a more specific CPU. */
+    auto cpu = "generic";
+    auto features = "";
+    llvm::TargetOptions options;
+    auto reloc_model = llvm::Reloc::Model();
+    
+    target = llvm_target->createTargetMachine(triple, cpu, features,
+                                              options, reloc_model);
+    module->setDataLayout(target->createDataLayout());
+    module->setTargetTriple(triple);
+}
 
 llvm::Value *CodeGenerator::codegen_value(const AST::NumberLiteral &num) {
     /* Create a floating-point constant with this value in this context. */
@@ -53,6 +92,8 @@ llvm::Value *CodeGenerator::codegen_value(const AST::BinaryOp &op) {
         return builder.CreateFSub(l, r, "subtmp");
     case '*':
         return builder.CreateFMul(l, r, "multmp");
+    case '/':
+        return builder.CreateFDiv(l, r, "divtmp");
     case '<':
         l = builder.CreateFCmpULT(l, r, "cmptmp");
         /* Convert bool 0/1 to double 0.0 or 1.0 */
@@ -133,9 +174,22 @@ llvm::Function *
     return nullptr;
 }
 
-void CodeGenerator::emit(std::ostream &out) {
+void CodeGenerator::emit_ir(std::ostream &out) {
     llvm::raw_os_ostream llvm_out(out);
     module->print(llvm_out, nullptr);
+}
+
+void CodeGenerator::emit_obj(int out) {
+    llvm::raw_fd_ostream llvm_out(out, false);
+    llvm::legacy::PassManager pass;
+    auto ft = llvm::TargetMachine::CGFT_ObjectFile;
+
+    if (target->addPassesToEmitFile(pass, llvm_out, ft)) {
+        llvm::errs() << "TargetMachine can't emit a file of this type";
+    }
+
+    pass.run(*module);
+    llvm_out.flush();
 }
 
 }
