@@ -1,9 +1,8 @@
 CC=clang++
 CXX=clang++
 
-CPPFLAGS=-g $(shell llvm-config --cxxflags) -Wall -Wpedantic -std=c++14 
-LDFLAGS=$(shell llvm-config --ldflags --system-libs --libs all)
-
+CPPFLAGS=-g $(shell llvm-config --cxxflags) -Wall -Wpedantic -std=c++14
+LDFLAGS=$(shell llvm-config --ldflags --system-libs --libs all) /usr/local/Cellar/boost/1.62.0/lib/libboost_program_options.a
 COMPILER_OBJS=CodeGenerator.o Lexer.o Parser.o
 
 all: parser_demo codegen_demo kalc
