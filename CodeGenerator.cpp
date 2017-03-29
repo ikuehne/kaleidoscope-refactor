@@ -30,10 +30,69 @@ static llvm::Value *log_error(const char *str) {
     return nullptr;
 }
 
+llvm::Value *ExpressionGenerator::operator()(const AST::NumberLiteral &num) {
+    /* Create a floating-point constant with this value in this context. */
+    return llvm::ConstantFP::get(context, llvm::APFloat(num.val));
+}
+
+llvm::Value *ExpressionGenerator::operator()(const AST::VariableName &var) {
+    /* Just look up the value corresponding to this name, and return that. */
+    auto result = names[var.name];
+    if (!result) return log_error("Unknown variable name");
+    return result;
+}
+
+llvm::Value *ExpressionGenerator::operator()
+       (const std::unique_ptr<AST::BinaryOp> &op) {
+    /* Get the LLVM values for left and right. */
+    llvm::Value *l = boost::apply_visitor(*this, op->lhs);
+    llvm::Value *r = boost::apply_visitor(*this, op->rhs);
+    if (!l || !r) return nullptr;
+
+    switch(op->op) {
+    case '+':
+        return builder.CreateFAdd(l, r, "addtmp");
+    case '-':
+        return builder.CreateFSub(l, r, "subtmp");
+    case '*':
+        return builder.CreateFMul(l, r, "multmp");
+    case '/':
+        return builder.CreateFDiv(l, r, "divtmp");
+    case '<':
+        l = builder.CreateFCmpULT(l, r, "cmptmp");
+        /* Convert bool 0/1 to double 0.0 or 1.0 */
+        return builder.CreateUIToFP(
+                l, llvm::Type::getDoubleTy(context), "booltmp");
+    default:
+        return log_error("invalid binary operator.");
+    }
+}
+
+llvm::Value *ExpressionGenerator::operator()(
+        const std::unique_ptr<AST::FunctionCall> &call) {
+	/* Look up the name in the global module table. */
+    llvm::Function *llvm_func = module.getFunction(call->fname);
+	if (!llvm_func)
+		return log_error("Unknown function referenced");
+
+    /* Log argument mismatch error. */
+    if (llvm_func->arg_size() != call->args.size())
+        return log_error("Incorrect # arguments passed");
+
+    std::vector<llvm::Value *> llvm_args;
+    for (unsigned i = 0; i != call->args.size(); ++i) {
+        llvm_args.push_back(boost::apply_visitor(*this, call->args[i]));
+        if (!llvm_args.back()) return nullptr;
+    }
+
+    return builder.CreateCall(llvm_func, llvm_args, "calltmp");
+}
+
 CodeGenerator::CodeGenerator(std::string name,
                              std::string triple)
     : builder(context),
-      module(llvm::make_unique<llvm::Module>(name, context)) {
+      module(llvm::make_unique<llvm::Module>(name, context)),
+      expr_gen(ExpressionGenerator(context, builder, *module, names)) {
     llvm::InitializeAllTargetInfos();
     llvm::InitializeAllTargets();
     llvm::InitializeAllTargetMCs();
@@ -67,65 +126,9 @@ CodeGenerator::CodeGenerator(std::string name,
     module->setTargetTriple(triple);
 }
 
-llvm::Value *CodeGenerator::codegen_value(const AST::NumberLiteral &num) {
-    /* Create a floating-point constant with this value in this context. */
-    return llvm::ConstantFP::get(context, llvm::APFloat(num.get()));
-}
-
-llvm::Value *CodeGenerator::codegen_value(const AST::VariableName &var) {
-    /* Just look up the value corresponding to this name, and return that. */
-    auto result = names[var.get()];
-    if (!result) return log_error("Unknown variable name");
-    return result;
-}
-
-llvm::Value *CodeGenerator::codegen_value(const AST::BinaryOp &op) {
-    /* Get the LLVM values for left and right. */
-    llvm::Value *l = op.get_lhs().host_generator(*this);
-    llvm::Value *r = op.get_rhs().host_generator(*this);
-    if (!l || !r) return nullptr;
-
-    switch(op.get_op()) {
-    case '+':
-        return builder.CreateFAdd(l, r, "addtmp");
-    case '-':
-        return builder.CreateFSub(l, r, "subtmp");
-    case '*':
-        return builder.CreateFMul(l, r, "multmp");
-    case '/':
-        return builder.CreateFDiv(l, r, "divtmp");
-    case '<':
-        l = builder.CreateFCmpULT(l, r, "cmptmp");
-        /* Convert bool 0/1 to double 0.0 or 1.0 */
-        return builder.CreateUIToFP(
-                l, llvm::Type::getDoubleTy(context), "booltmp");
-    default:
-        return log_error("invalid binary operator.");
-    }
-}
-
-llvm::Value *CodeGenerator::codegen_value(const AST::FunctionCall &call) {
-	/* Look up the name in the global module table. */
-    llvm::Function *llvm_func = module->getFunction(call.get_name());
-	if (!llvm_func)
-		return log_error("Unknown function referenced");
-
-    /* Log argument mismatch error. */
-    if (llvm_func->arg_size() != call.get_args().size())
-        return log_error("Incorrect # arguments passed");
-
-    std::vector<llvm::Value *> llvm_args;
-    for (unsigned i = 0; i != call.get_args().size(); ++i) {
-        llvm_args.push_back(call.get_args()[i]->host_generator(*this));
-        if (!llvm_args.back()) return nullptr;
-    }
-
-    return builder.CreateCall(llvm_func, llvm_args, "calltmp");
-}
-
-llvm::Function *
-      CodeGenerator::codegen_func(const AST::FunctionPrototype &func) {
-    std::vector<llvm::Type *> doubles(func.get_args().size(),
+llvm::Function *CodeGenerator::operator()
+       (const std::unique_ptr<AST::FunctionPrototype> &func) {
+    std::vector<llvm::Type *> doubles(func->args.size(),
                                       llvm::Type::getDoubleTy(context));
     llvm::FunctionType *ft =
         llvm::FunctionType::get(llvm::Type::getDoubleTy(context),
@@ -133,21 +136,21 @@ llvm::Function *
 
     llvm::Function *result =
             llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
-                                   func.get_name(), module.get());
+                                   func->fname, module.get());
     unsigned i = 0;
     for (auto &arg: result->args())
-        arg.setName(func.get_args()[i++]);
+        arg.setName(func->args[i++]);
 
     return result;
 }
 
-llvm::Function *
-      CodeGenerator::codegen_func(const AST::FunctionDefinition &f) {
-    const AST::FunctionPrototype &proto = f.get_prototype();
+llvm::Function *CodeGenerator::operator()
+            (const std::unique_ptr<AST::FunctionDefinition> &f) {
+    const std::unique_ptr<AST::FunctionPrototype> &proto = f->proto;
     // Check if the function is defined `extern`.
-    llvm::Function *result = module->getFunction(proto.get_name());
+    llvm::Function *result = module->getFunction(proto->fname);
 
-    if (!result) result = proto.host_generator(*this);
+    if (!result) result = (*this)(proto);
 
     if (!result) return nullptr;
 
@@ -163,7 +166,7 @@ llvm::Function *
         names[arg.getName()] = &arg;
     }
 
-    if (llvm::Value *ret = f.get_body().host_generator(*this)) {
+    if (llvm::Value *ret = boost::apply_visitor(expr_gen, f->body)) {
         builder.CreateRet(ret);
         llvm::verifyFunction(*result);
 

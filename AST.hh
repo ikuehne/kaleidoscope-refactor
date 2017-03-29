@@ -4,11 +4,13 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "llvm/IR/Value.h"
+#include <boost/variant.hpp>
+#include <llvm/IR/Value.h>
 
 /* A note on the architecture: AST classes are returned by the parser, and
  * then visited by the code-generator. The classes contained herein have the
@@ -22,9 +24,6 @@
 
 namespace Kaleidoscope {
 
-// Forward declare this for `host_generator` methods.
-class CodeGenerator;
-
 /**
  * @brief Contains all of the Abstract Syntax Tree classes.
  *
@@ -33,42 +32,17 @@ class CodeGenerator;
  */
 namespace AST {
 
-/**
- * @brief Interface for expressions which evaluate to a Kaleidoscope value.
- */
-class Expression {
-public:
-    virtual ~Expression() = default;
+struct Error {
 
-    /**
-     * @brief Host the CodeGenerator visitor.
-     *
-     * All expressions correspond to an llvm::Value, so the generator should
-     * produce one from this node.
-     *
-     * @return The generated `value`, essentially the LLVM AST version of this
-     *         AST node.  The returned value is owned by the `CodeGenerator`
-     *         parameter.
-     */
-    virtual llvm::Value *host_generator(CodeGenerator &) const = 0;
 };
 
 /**
  * @brief Floating-point literals.
  */
-class NumberLiteral: public Expression {
-public:
-    NumberLiteral(double val);
-
-    /**
-     * @brief Get the value of this literal.
-     */
-    double get(void) const;
-
-    llvm::Value *host_generator(CodeGenerator &) const override;
-
-private:
+struct NumberLiteral {
     double val;
+
+    NumberLiteral(double val): val(val) {}
 };
 
 /**
@@ -76,105 +50,83 @@ private:
  *
  * Essentially a thin wrapper over `std::string`.
  */
-class VariableName: public Expression {
-public:
-    VariableName(const std::string &);
-
-    /**
-     * @brief Get this variable's name as a `std::string`.
-     */
-    std::string get(void) const;
-
-    llvm::Value *host_generator(CodeGenerator &) const override;
-
-private:
+struct VariableName {
     std::string name;
+    VariableName(std::string name): name(name) {}
 };
+
+/* Forward-declare theses to prevent recursive type. */
+struct BinaryOp;
+struct FunctionCall;
+
+/**
+ * @brief An expression: any of the various expression structs.
+ */
+typedef boost::variant< NumberLiteral,
+                        VariableName,
+                        std::unique_ptr<BinaryOp>,
+                        std::unique_ptr<FunctionCall>,
+                        Error > Expression;
+
+inline bool is_err(const Expression &expr) {
+    return expr.which() == 4;
+}
 
 /**
  * @brief Binary operations of the form `expression op expression`.
  */
-class BinaryOp: public Expression {
-public:
-    BinaryOp(char op, std::unique_ptr<Expression> lhs,
-                      std::unique_ptr<Expression> rhs);
-    char get_op(void) const;
-    const Expression &get_lhs(void) const;
-    const Expression &get_rhs(void) const;
-    llvm::Value *host_generator(CodeGenerator &) const override;
-
-private:
+struct BinaryOp {
     char op;
-    std::unique_ptr<Expression> lhs;
-    std::unique_ptr<Expression> rhs;
+    Expression lhs;
+    Expression rhs;
+    BinaryOp(char op, Expression lhs,
+                      Expression rhs)
+        : op(op), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
 };
 
 /**
  * @brief A call to a Kaleidoscope function.
  */
-class FunctionCall: public Expression {
-public:
-    FunctionCall(const std::string &name,
-                 std::vector<std::unique_ptr<Expression>> args);
-    std::string get_name(void) const;
-    const std::vector<std::unique_ptr<Expression>> &get_args(void) const;
-    llvm::Value *host_generator(CodeGenerator &) const;
-
-private:
+struct FunctionCall {
     std::string fname;
-    std::vector<std::unique_ptr<Expression>> args;
+    std::vector<Expression> args;
+    FunctionCall(std::string fname,
+                 std::vector<Expression> args)
+        : fname(fname), args(std::move(args)) {}
 };
 
-/**
- * @brief Top-level AST nodes, which can serve as the root of an AST.
- */
-class Toplevel {
-public:
-    virtual ~Toplevel() = default;
+struct FunctionPrototype;
+struct FunctionDefinition;
 
-    /**
-     * @brief Host the CodeGenerator visitor.
-     *
-     * All top-level nodes correspond to an llvm::Function, so the generator
-     * should produce one from this node.
-     *
-     * @return The generated `Function`, essentially the LLVM AST version of
-     *         this AST node.  The returned value is owned by the
-     *         `CodeGenerator` parameter.
-     */
-    virtual llvm::Function *host_generator(CodeGenerator &) const = 0;
-};
+typedef boost::variant< std::unique_ptr< FunctionPrototype >,
+                        std::unique_ptr< FunctionDefinition >,
+                        Error > Declaration;
+
+#define is_err_decl(d) (d.which() == 2)
+
+inline bool is_err(const Declaration &decl) {
+    return decl.which() == 2;
+}
 
 /**
  * @brief Kaleidoscope function signature.
  */
-class FunctionPrototype: public Toplevel {
-public:
-    FunctionPrototype(const std::string &name, std::vector<std::string> args);
-    std::string get_name(void) const;
-    std::vector<std::string> get_args(void) const;
-    llvm::Function *host_generator(CodeGenerator &) const override;
-
-private:
+struct FunctionPrototype {
     std::string fname;
     std::vector<std::string> args;
+    FunctionPrototype(std::string fname, std::vector<std::string> args)
+        : fname(fname), args(args) {}
 };
 
 /**
  * @brief A full function definition (signature and body).
  */
-class FunctionDefinition: public Toplevel {
-public:
-    FunctionDefinition(std::unique_ptr<FunctionPrototype> proto,
-                       std::unique_ptr<Expression> body);
-
-    const FunctionPrototype &get_prototype(void) const;
-    const Expression &get_body(void) const;
-    llvm::Function *host_generator(CodeGenerator &) const override;
-
-private:
+struct FunctionDefinition {
     std::unique_ptr<FunctionPrototype> proto;
-    std::unique_ptr<Expression> body;
+    Expression body;
+    FunctionDefinition(std::unique_ptr<FunctionPrototype> proto,
+                       Expression body)
+        : proto(std::move(proto)), body(std::move(body)) {}
 };
 
 }

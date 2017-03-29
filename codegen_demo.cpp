@@ -1,12 +1,15 @@
 #include <iostream>
 
+#include <boost/variant.hpp>
+
 #include "AST.hh"
 #include "Parser.hh"
 #include "CodeGenerator.hh"
 
 void handle_input(Kaleidoscope::Parser &p, Kaleidoscope::CodeGenerator &c) {
-    if (auto e = p.parse()) {
-        e->host_generator(c);
+    auto e = p.parse();
+    if (!is_err(e)) {
+        boost::apply_visitor(c, e);
     }
 }
 
