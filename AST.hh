@@ -55,7 +55,7 @@ struct VariableName {
     VariableName(std::string name): name(name) {}
 };
 
-/* Forward-declare theses to prevent recursive type. */
+/* Forward-declare these to prevent recursive type. */
 struct BinaryOp;
 struct FunctionCall;
 
