@@ -5,41 +5,13 @@
 #include <iostream>
 
 #include <boost/variant.hpp>
-#include "llvm/ADT/Triple.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Value.h"
 #include "llvm/Support/Host.h"
-#include "llvm/Target/TargetMachine.h"
 
 #include "AST.hh"
 
 namespace Kaleidoscope {
 
-class ExpressionGenerator: public boost::static_visitor<llvm::Value *> {
-public:
-    ExpressionGenerator(llvm::LLVMContext &context,
-                        llvm::IRBuilder<> &builder,
-                        llvm::Module &module,
-                        std::map<std::string, llvm::Value *> &names) 
-        : context(context), builder(builder), module(module), names(names) {}
-
-    llvm::Value *operator() (const AST::NumberLiteral &);
-    llvm::Value *operator() (const AST::VariableName &);
-    llvm::Value *operator() (const std::unique_ptr<AST::BinaryOp> &);
-    llvm::Value *operator() (const std::unique_ptr<AST::FunctionCall> &);
-    llvm::Value *operator() (const AST::Error &) {
-        return nullptr;
-    }
-
-private:
-    llvm::LLVMContext &context;
-    llvm::IRBuilder<> &builder;
-    llvm::Module &module;
-    std::map<std::string, llvm::Value *> &names;
-};
-
+class CodeGeneratorImpl;
 /**
  * @brief Visit AST nodes and convert them to an LLVM AST.
  */
@@ -52,6 +24,8 @@ public:
      */
     CodeGenerator(std::string name,
                   std::string triple=llvm::sys::getDefaultTargetTriple());
+
+    ~CodeGenerator();
 
     /**
      * @name Visitors
@@ -85,14 +59,7 @@ public:
 
 private:
 
-    llvm::LLVMContext context;
-    llvm::IRBuilder<> builder;
-    std::unique_ptr<llvm::Module> module;
-    std::map<std::string, llvm::Value *> names;
-
-	llvm::TargetMachine *target;
-
-    ExpressionGenerator expr_gen;
+    std::unique_ptr<CodeGeneratorImpl> pimpl;
 };
 
 }
