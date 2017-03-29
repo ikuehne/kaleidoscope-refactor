@@ -7,6 +7,15 @@ variables; making the code prettier, more extensible, and more maintainable; and
 most importantly at learning LLVM by forcing myself to carefully read the
 tutorial and understand the code.
 
+Some major changes from the source code listing in the tutorial:
+
+ * Breaking up code into classes and files.
+ * Representing AST using boost::variants, and doing code generation with a
+   visitor.
+ * Static instead of JIT compilation.
+ * More sensible command-line interface.
+ * Better use of C++11 and C++14 features.
+
 Building
 --------
 
