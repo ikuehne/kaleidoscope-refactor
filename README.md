@@ -22,9 +22,10 @@ run uses:
 In theory, there is no reason the compiler should not run on any platform LLVM
 supports, but of course it is untested on most such platforms.
 
-The best advice for compiling this project that I have is to install the tools
-listed above and change the `BOOST_OPT` variable in the Makefile, then just try
-to `make` and see what happens.  Good luck.
+The best advice I have for compiling this project is to install the tools listed
+above and change the `BOOST_OPT` variable in the Makefile, which should point to
+the binary part of the Boost.Program\_options library.  Then just try to `make`
+and see what happens.  Good luck.
 
 Language
 --------
