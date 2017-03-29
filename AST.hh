@@ -12,15 +12,8 @@
 #include <boost/variant.hpp>
 #include <llvm/IR/Value.h>
 
-/* A note on the architecture: AST classes are returned by the parser, and
- * then visited by the code-generator. The classes contained herein have the
- * following in common:
- *
- * - They represent a syntactic construct in Kaleidoscope.
- * - They contain only `const` methods.  The AST should not be modified.
- * - Instances can host a `CodeGenerator` visitor to generate code from their
- *   contents.
- */
+/* Architectural note: AST classes are returned by the parser, and then
+ * visited by the code-generator. */
 
 namespace Kaleidoscope {
 
