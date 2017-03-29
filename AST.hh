@@ -95,8 +95,6 @@ typedef boost::variant< std::unique_ptr< FunctionPrototype >,
                         std::unique_ptr< FunctionDefinition >,
                         Error > Declaration;
 
-#define is_err_decl(d) (d.which() == 2)
-
 inline bool is_err(const Declaration &decl) {
     return decl.which() == 2;
 }
