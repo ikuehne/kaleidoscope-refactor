@@ -6,16 +6,9 @@ CPPFLAGS=-g $(shell llvm-config --cxxflags) -Wall -Wpedantic -std=c++14
 LDFLAGS=$(shell llvm-config --ldflags --system-libs --libs all) $(BOOST_OPT)
 COMPILER_OBJS=CodeGeneratorImpl.o CodeGenerator.o Lexer.o Parser.o
 
-all: parser_demo codegen_demo kalc
+all: kalc
 
-kalc: main
-	mv main kalc
-
-main: $(COMPILER_OBJS) main.o
-
-parser_demo: $(COMPILER_OBJS) parser_demo.o
-
-codegen_demo: $(COMPILER_OBJS) codegen_demo.o
+kalc: $(COMPILER_OBJS) kalc.o
 
 clean:
-	$(RM) *.o parser_demo codegen_demo main kalc
+	$(RM) *.o kalc
