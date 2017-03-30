@@ -1,5 +1,6 @@
 #include <iostream>
 #include <memory>
+#include <sstream>
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
@@ -28,7 +29,7 @@ namespace Kaleidoscope {
  * Utilities.
  */
 
-static llvm::Value *log_error(const char *str) {
+static llvm::Value *log_error(std::string str) {
     std::cerr << "Kaleidoscope::CodeGenerator::log_error: "
               << str << std::endl;
     return nullptr;
@@ -81,7 +82,7 @@ llvm::Value *ExpressionGenerator::operator()(
 	/* Look up the name in the global module table. */
     llvm::Function *llvm_func = module.getFunction(call->fname);
 	if (!llvm_func)
-		return log_error("Unknown function referenced");
+		return log_error("Unknown function referenced: " + call->fname);
 
     /* Log argument mismatch error. */
     if (llvm_func->arg_size() != call->args.size())
