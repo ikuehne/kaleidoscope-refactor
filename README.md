@@ -39,12 +39,16 @@ and see what happens.  Good luck.
 Language
 --------
 
-As of the time of writing, the subset of Kaleidoscope implemented consists of
-extern declarations, function definitions, and arithmetic expressions.  The
-following is an example of code this version can compile:
+The subset of Kaleidoscope implemented consists of extern declarations, function
+definitions, arithmetic expressions, and conditionals.  The following is an
+example of code this version can compile:
 
 ```
-def myaverage(a b) (a + b) / 2
+def fibonacciaux(x1 x2 n)
+    if (n < 0.5) then x1
+                 else fibonacciaux(x2, x1 + x2, n - 1)
+
+def fibonacci(n) fibonacciaux(0, 1, n)
 ```
 
 Compiler usage
@@ -52,30 +56,43 @@ Compiler usage
 
 The default compiler target is `kalc` (for KALeidoscope Compiler).  As an
 example of usage (and a demonstration of its ability to produce viable object
-code), save the above `myaverage` function in `kaltest.kal`.  Since the subset
+code), save the above `myaverage` function in `fibonacci.kal`.  Since the subset
 of Kaleidoscope so far implemented does not allow for any interesting I/O, use
 this C program to demonstrate that the compiler correctly compiles that code:
 
 ```c
 #include <stdio.h>
 
-double myaverage(double, double);
+double fibonacci(double);
 
 int main(void) {
-    double x = 2, y = 5;
+    double i;
 
-    printf("The average of %g and %g is %g.\n", x, y, myaverage(x, y));
+    for (i = 0; i < 11; i += 1.0) {
+        printf("%gth fibonacci:\t%g\n", i, fibonacci(i));
+    }
 
     return 0;
 }
-```
-
-Save it as ctest.c.  Then run:
 
 ```
-$ ./kalc kaltest.kal --out kaltest.o
-$ clang -c ctest.c
-$ clang ctest.o kaltest.o -o kaltest
-$ ./kaltest
-The average of 2 and 5 is 3.5.
+
+Save it as test.c.  Then run:
+
+```
+$ ./kalc fibonacci.kal --out fibonacci.o
+$ clang -c test.c
+$ clang test.o fibonacci.o -o test
+$ ./test
+0th fibonacci:	0
+1th fibonacci:	1
+2th fibonacci:	1
+3th fibonacci:	2
+4th fibonacci:	3
+5th fibonacci:	5
+6th fibonacci:	8
+7th fibonacci:	13
+8th fibonacci:	21
+9th fibonacci:	34
+10th fibonacci:	55
 ```
