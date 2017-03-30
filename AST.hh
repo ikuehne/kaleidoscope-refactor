@@ -52,6 +52,7 @@ struct VariableName {
 struct BinaryOp;
 struct FunctionCall;
 struct IfThenElse;
+struct ForLoop;
 
 /**
  * @brief An expression: any of the various expression structs.
@@ -61,10 +62,11 @@ typedef boost::variant< NumberLiteral,
                         std::unique_ptr<BinaryOp>,
                         std::unique_ptr<FunctionCall>,
                         std::unique_ptr<IfThenElse>,
+                        std::unique_ptr<ForLoop>,
                         Error > Expression;
 
 inline bool is_err(const Expression &expr) {
-    return expr.which() == 5;
+    return expr.which() == 6;
 }
 
 /**
@@ -100,6 +102,21 @@ struct IfThenElse {
         : cond(std::move(cond)),
           then(std::move(then)),
           else_(std::move(else_)) {}
+};
+
+/**
+ * @brief A "for" loop.
+ */
+struct ForLoop {
+    std::string index_var;
+    Expression start, end, step, body;
+
+    ForLoop(std::string index_var,
+            Expression start, Expression end,
+            Expression step,  Expression body)
+        : index_var(index_var),
+                    start(std::move(start)), end(std::move(end)),
+                    step(std::move(step)),   body(std::move(body)) {}
 };
 
 struct FunctionPrototype;

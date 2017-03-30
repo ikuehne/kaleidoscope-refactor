@@ -33,6 +33,12 @@ enum Token {
 
     /** Else expression. */
     tok_else = -8,
+
+    /** For loop. */
+    tok_for = -9,
+
+    /** "in" part of for loop. */
+    tok_in = -10,
 };
 
 /**

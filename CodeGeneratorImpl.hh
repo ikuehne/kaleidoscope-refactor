@@ -52,6 +52,7 @@ public:
     llvm::Value *operator() (const std::unique_ptr<AST::BinaryOp> &);
     llvm::Value *operator() (const std::unique_ptr<AST::FunctionCall> &);
     llvm::Value *operator() (const std::unique_ptr<AST::IfThenElse> &);
+    llvm::Value *operator() (const std::unique_ptr<AST::ForLoop> &);
     llvm::Value *operator() (const AST::Error &) {
         return nullptr;
     }
@@ -59,6 +60,8 @@ public:
     /**@}*/
 
 private:
+    llvm::Value *to_cond(llvm::Value *f);
+
     llvm::LLVMContext &context;
     llvm::IRBuilder<> &builder;
     llvm::Module &module;

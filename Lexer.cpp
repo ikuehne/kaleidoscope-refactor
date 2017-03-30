@@ -31,6 +31,9 @@ int Lexer::get_token(void) {
         if (identifier == "if")     return tok_if;
         if (identifier == "then")   return tok_then;
         if (identifier == "else")   return tok_else;
+        /* one of the bits of a "for" loop, */
+        if (identifier == "for")    return tok_for;
+        if (identifier == "in")     return tok_in;
         /* or an identifier. */
         return tok_identifier;
     }

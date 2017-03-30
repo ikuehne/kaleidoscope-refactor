@@ -39,6 +39,14 @@ static llvm::Value *log_error(std::string str) {
  * ExpressionGenerator implementation.
  */
 
+llvm::Value *ExpressionGenerator::to_cond(llvm::Value *f) {
+    if (!f) return nullptr;
+    return builder.CreateFCmpONE(f,
+                                 llvm::ConstantFP::get(context,
+                                                       llvm::APFloat(0.0)),
+                                 "cond");
+}
+
 llvm::Value *ExpressionGenerator::operator()(const AST::NumberLiteral &num) {
     /* Create a floating-point constant with this value in this context. */
     return llvm::ConstantFP::get(context, llvm::APFloat(num.val));
@@ -101,14 +109,8 @@ llvm::Value *ExpressionGenerator::operator()(
         const std::unique_ptr<AST::IfThenElse> &if_) {
 
     /* Generate code for the condition. */
-    llvm::Value *cond = boost::apply_visitor(*this, if_->cond);
+    llvm::Value *cond = to_cond(boost::apply_visitor(*this, if_->cond));
     if (!cond) return nullptr;
-
-    /* Create an instruction based on condition (ONE=Ordered Not Equal). */
-    cond = builder.CreateFCmpONE(cond,
-                                 llvm::ConstantFP::get(context,
-                                                       llvm::APFloat(0.0)),
-                                 "ifcond");
 
     /* Get the parent function (so that the builder knows where to do stuff).
     */
@@ -158,6 +160,51 @@ llvm::Value *ExpressionGenerator::operator()(
     return pn;
 }
 
+llvm::Value *ExpressionGenerator::operator()(
+        const std::unique_ptr<AST::ForLoop> &loop) {
+    llvm::Function *parent = builder.GetInsertBlock()->getParent();
+    auto &entry_bb = parent->back();
+    auto *loop_bb = llvm::BasicBlock::Create(context, "loop", parent);
+    auto *exit_bb = llvm::BasicBlock::Create(context, "loop_exit");
+    auto start = boost::apply_visitor(*this, loop->start);
+
+    builder.CreateBr(loop_bb);
+
+    builder.SetInsertPoint(loop_bb);
+    auto loop_idx = builder.CreatePHI(llvm::Type::getDoubleTy(context),
+                                      2, loop->index_var);
+    loop_idx->addIncoming(start, &entry_bb);
+    auto *old_val = names[loop->index_var];
+    /* Delay adding the other incoming until we finish "loop". */
+    names[loop->index_var] = loop_idx;
+    /* Discard value body evaluates to. */
+    if (!boost::apply_visitor(*this, loop->body)) return nullptr;
+    auto step = boost::apply_visitor(*this, loop->step);
+    auto next = builder.CreateFAdd(loop_idx, step);
+
+    auto end = to_cond(boost::apply_visitor(*this, loop->end));
+    if (!end) return nullptr;
+
+    auto *last_loop_bb = builder.GetInsertBlock();
+
+    loop_idx->addIncoming(next, last_loop_bb);
+
+    builder.CreateCondBr(end, loop_bb, exit_bb);
+
+    builder.SetInsertPoint(exit_bb);
+
+    parent->getBasicBlockList().push_back(exit_bb);
+
+    /* Delete the index variable from the environment. */
+    if (old_val) {
+        names[loop->index_var] = old_val;
+    } else {
+        names.erase(loop->index_var);
+    }
+    
+    return llvm::Constant::getNullValue(llvm::Type::getDoubleTy(context));
+}
+
 /*****************************************************************************
  * CodeGeneratorImpl implementations.
  */
@@ -201,6 +248,7 @@ CodeGeneratorImpl::CodeGeneratorImpl(std::string name, std::string triple)
 
 llvm::Function *CodeGeneratorImpl::operator()
        (const std::unique_ptr<AST::FunctionPrototype> &func) {
+    assert(func);
     std::vector<llvm::Type *> doubles(func->args.size(),
                                       llvm::Type::getDoubleTy(context));
     llvm::FunctionType *ft =

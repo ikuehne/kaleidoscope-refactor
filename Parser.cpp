@@ -134,6 +134,8 @@ AST::Expression Parser::parse_primary(void) {
             return parse_parens();
         case tok_if:
             return parse_if_then_else();
+        case tok_for:
+            return parse_for_loop();
         default:
             result = log_error("Unknown token when expecting expression.");
             assert(AST::is_err(result));
@@ -201,6 +203,52 @@ AST::Expression Parser::parse_if_then_else(void){
     return std::make_unique<AST::IfThenElse>(std::move(cond),
                                              std::move(then),
                                              std::move(_else));
+}
+
+AST::Expression Parser::parse_for_loop(void) {
+    /* Shift "for". */
+    shift_token();
+
+    if (cur_token != tok_identifier) {
+        return log_error("expected identifier as loop index.");
+    }
+
+    std::string idx = lexer.get_identifier();
+
+    shift_token();
+
+    if (cur_token != '=') return log_error("expected '=' in loop.");
+
+    shift_token();
+
+    auto start = parse_expression();
+
+    if (cur_token != ',') {
+        return log_error("expected ',' between loop elements.");
+    }
+
+    shift_token();
+
+    auto term = parse_expression();
+
+    AST::Expression incr(AST::NumberLiteral(1.0));
+    if (cur_token == ',') {
+        shift_token();
+        incr = parse_expression();
+    }
+
+    if (cur_token != tok_in) {
+        return log_error("Expected 'in' after for loop.");
+    }
+
+    shift_token();
+
+    auto body = parse_expression();
+
+    return std::make_unique<AST::ForLoop>(idx, std::move(start),
+                                               std::move(term),
+                                               std::move(incr),
+                                               std::move(body));
 }
 
 std::unique_ptr<AST::FunctionPrototype> Parser::parse_prototype(void) {
