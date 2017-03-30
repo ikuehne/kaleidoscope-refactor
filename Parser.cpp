@@ -90,7 +90,7 @@ AST::Expression Parser::parse_identifier(void) {
     /* Unless this is a function call, */
     if (cur_token != '(')
         /* it's a variable. */
-        return AST::Expression(id);
+        return id;
 
     /* If it is a function call, shift the opening paren.*/
     shift_token();
@@ -174,8 +174,8 @@ AST::Expression Parser::parse_binop_rhs(int prec, AST::Expression lhs) {
             if (AST::is_err(rhs)) return rhs;
         }
 
-        lhs = AST::Expression(std::make_unique<AST::BinaryOp>(
-                op, std::move(lhs), std::move(rhs)));
+        lhs = std::make_unique<AST::BinaryOp>(op, std::move(lhs),
+                                                  std::move(rhs));
     }
 }
 
