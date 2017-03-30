@@ -80,7 +80,7 @@ int main(void) {
 Save it as test.c.  Then run:
 
 ```
-$ ./kalc fibonacci.kal --out fibonacci.o
+$ ./kalc fibonacci.kal --obj fibonacci.o
 $ clang -c test.c
 $ clang test.o fibonacci.o -o test
 $ ./test

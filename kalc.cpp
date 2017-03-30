@@ -32,8 +32,10 @@ int main(int argc, char **argv) {
     opt::options_description desc("Kaleidoscope Compiler Options");
     desc.add_options()
         ("help", "print usage information")
-        ("out", opt::value<std::string>(),
+        ("obj", opt::value<std::string>(),
             "select output file to emit object code")
+        ("ll", opt::value<std::string>(),
+            "select output file to emit LLVM IR")
         ("in", opt::value<std::string>(), "select input file");
     opt::positional_options_description pos;
     pos.add("in", -1);
@@ -47,7 +49,7 @@ int main(int argc, char **argv) {
 
     /* If the user did good, */
     if (!opt_map.count("help")
-      && opt_map.count("out")
+      && (opt_map.count("obj") || opt_map.count("ll"))
       && opt_map.count("in")) {
         /* Get a code generator. */
         Kaleidoscope::CodeGenerator codegen("Kaleidoscope module");
@@ -62,14 +64,20 @@ int main(int argc, char **argv) {
             handle_input(parser, codegen);
         }
 
-        /* Open the output file (LLVM's stream formats are weird, so we can't
-         * use regular STL stream classes). */
-        int fd = open(opt_map["out"].as<std::string>().c_str(),
-                      O_RDWR | O_CREAT,
-                      OBJFILE_MODE_BLAZEIT);
-        /* Emit the object code. */
-        codegen.emit_obj(fd);
-        close(fd);
+        if (opt_map.count("obj")) {
+            /* Open the output file (LLVM's stream formats are weird, so we
+             * can't use regular STL stream classes). */
+            int fd = open(opt_map["obj"].as<std::string>().c_str(),
+                          O_RDWR | O_CREAT,
+                          OBJFILE_MODE_BLAZEIT);
+            /* Emit the object code. */
+            codegen.emit_obj(fd);
+            close(fd);
+        }
+        if (opt_map.count("ll")) {
+            std::ofstream file(opt_map["ll"].as<std::string>());
+            codegen.emit_ir(file);
+        }
     } else {
         /* Print usage information if the user did bad. */
         std::cerr << desc << std::endl;
