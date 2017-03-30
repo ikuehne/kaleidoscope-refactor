@@ -24,11 +24,13 @@ int Lexer::get_token(void) {
         }
 
         /* Could be a definition, */
-        if (identifier == "def")
-            return tok_def;
+        if (identifier == "def")    return tok_def;
         /* an extern declaration, */
-        if (identifier == "extern")
-            return tok_extern;
+        if (identifier == "extern") return tok_extern;
+        /* one of the bits of an "if" block, */
+        if (identifier == "if")     return tok_if;
+        if (identifier == "then")   return tok_then;
+        if (identifier == "else")   return tok_else;
         /* or an identifier. */
         return tok_identifier;
     }

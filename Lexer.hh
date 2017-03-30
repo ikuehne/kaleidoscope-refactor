@@ -24,6 +24,15 @@ enum Token {
 
     /** Floating-point literal. */
     tok_number = -5,
+
+    /** If condition. */
+    tok_if = -6,
+
+    /** Then expression. */
+    tok_then = -7,
+
+    /** Else expression. */
+    tok_else = -8,
 };
 
 /**

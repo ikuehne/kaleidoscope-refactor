@@ -18,23 +18,19 @@ private:
     int shift_token(void);
     int get_token_precedence(void) const;
 
-    void handle_definition(void);
-    void handle_extern(void);
-    void handle_top_level(void);
-    void main_loop(void);
-
     AST::NumberLiteral parse_number(void);
     AST::Expression parse_parens(void);
     AST::Expression parse_identifier(void);
     AST::Expression parse_binop_rhs(int prec, AST::Expression lhs);
+    AST::Expression parse_if_then_else(void);
     AST::Expression parse_primary(void);
     AST::Expression parse_expression(void);
 
     std::unique_ptr<AST::FunctionPrototype> parse_prototype(void);
-    std::unique_ptr<AST::FunctionDefinition> parse_definition(void);
-    std::unique_ptr<AST::FunctionPrototype> parse_extern(void);
+    AST::Declaration parse_definition(void);
+    AST::Declaration parse_extern(void);
 
-    std::unique_ptr<AST::FunctionDefinition> parse_top_level(void);
+    AST::Declaration parse_top_level(void);
 
 public:
     Parser(std::istream *input = &std::cin);
@@ -51,7 +47,6 @@ public:
      * @brief Have we reached the end of the input stream?
      */
     bool reached_end(void) const;
-    void demo(void);
 };
 
 }

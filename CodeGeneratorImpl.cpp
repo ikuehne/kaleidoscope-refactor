@@ -96,6 +96,67 @@ llvm::Value *ExpressionGenerator::operator()(
     return builder.CreateCall(llvm_func, llvm_args, "calltmp");
 }
 
+llvm::Value *ExpressionGenerator::operator()(
+        const std::unique_ptr<AST::IfThenElse> &if_) {
+
+    /* Generate code for the condition. */
+    llvm::Value *cond = boost::apply_visitor(*this, if_->cond);
+    if (!cond) return nullptr;
+
+    /* Create an instruction based on condition (ONE=Ordered Not Equal). */
+    cond = builder.CreateFCmpONE(cond,
+                                 llvm::ConstantFP::get(context,
+                                                       llvm::APFloat(0.0)),
+                                 "ifcond");
+
+    /* Get the parent function (so that the builder knows where to do stuff).
+    */
+    llvm::Function *parent = builder.GetInsertBlock()->getParent();
+
+    /* Create a then block (with nothing in it), so that we can reference it
+     * in the branch.  Note that this actually emits the block. */
+    auto *then_bb = llvm::BasicBlock::Create(context, "then", parent);
+    /* Ditto with else. */
+    auto *else_bb = llvm::BasicBlock::Create(context, "else");
+    /* Block jumped to after `then_bb` or `else_bb`. */
+    auto *merge_bb = llvm::BasicBlock::Create(context, "merge");
+    /* Create a conditional branch that jumps to one of the above blocks. */
+    builder.CreateCondBr(cond, then_bb, else_bb);
+
+    /* Generate code for the "then" block. */
+    builder.SetInsertPoint(then_bb);
+    llvm::Value *then = boost::apply_visitor(*this, if_->then);
+    if (!then) return nullptr;
+
+    /* After "then" is done, jump (past "else") to "merge". */
+    builder.CreateBr(merge_bb);
+    then_bb = builder.GetInsertBlock();
+
+    /* Emit the "else" block. */
+    parent->getBasicBlockList().push_back(else_bb);
+
+    /* Generate code for the "then" block. */
+    builder.SetInsertPoint(else_bb);
+    llvm::Value *else_ = boost::apply_visitor(*this, if_->else_);
+    if (!else_) return nullptr;
+
+    builder.CreateBr(merge_bb);
+    else_bb = builder.GetInsertBlock();
+
+    /* Emit the "merge" block. */
+    parent->getBasicBlockList().push_back(merge_bb);
+
+    /* Generate code for the "merge" block. */
+    builder.SetInsertPoint(merge_bb);
+    /* This block just returns the result of a phi node. */
+    llvm::PHINode *pn = builder.CreatePHI(llvm::Type::getDoubleTy(context),
+                                          2, "iftemp");
+    pn->addIncoming(then, then_bb);
+    pn->addIncoming(else_, else_bb);
+
+    return pn;
+}
+
 /*****************************************************************************
  * CodeGeneratorImpl implementations.
  */
@@ -157,11 +218,12 @@ llvm::Function *CodeGeneratorImpl::operator()
 
 llvm::Function *CodeGeneratorImpl::operator()
             (const std::unique_ptr<AST::FunctionDefinition> &f) {
-    const std::unique_ptr<AST::FunctionPrototype> &proto = f->proto;
+    const AST::FunctionPrototype &proto = *f->proto;
+    assert(module != nullptr);
     // Check if the function is defined `extern`.
-    llvm::Function *result = module->getFunction(proto->fname);
+    llvm::Function *result = module->getFunction(proto.fname);
 
-    if (!result) result = (*this)(proto);
+    if (!result) result = (*this)(f->proto);
 
     if (!result) return nullptr;
 

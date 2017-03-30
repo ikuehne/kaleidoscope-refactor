@@ -51,6 +51,7 @@ struct VariableName {
 /* Forward-declare these to prevent recursive type. */
 struct BinaryOp;
 struct FunctionCall;
+struct IfThenElse;
 
 /**
  * @brief An expression: any of the various expression structs.
@@ -59,10 +60,11 @@ typedef boost::variant< NumberLiteral,
                         VariableName,
                         std::unique_ptr<BinaryOp>,
                         std::unique_ptr<FunctionCall>,
+                        std::unique_ptr<IfThenElse>,
                         Error > Expression;
 
 inline bool is_err(const Expression &expr) {
-    return expr.which() == 4;
+    return expr.which() == 5;
 }
 
 /**
@@ -86,6 +88,18 @@ struct FunctionCall {
     FunctionCall(std::string fname,
                  std::vector<Expression> args)
         : fname(fname), args(std::move(args)) {}
+};
+
+/**
+ * @brief An if/then/else expression.
+ */
+struct IfThenElse {
+    Expression cond, then, else_;
+
+    IfThenElse(Expression cond, Expression then, Expression else_)
+        : cond(std::move(cond)),
+          then(std::move(then)),
+          else_(std::move(else_)) {}
 };
 
 struct FunctionPrototype;

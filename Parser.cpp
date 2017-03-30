@@ -125,6 +125,7 @@ AST::Expression Parser::parse_identifier(void) {
 }
 
 AST::Expression Parser::parse_primary(void) {
+    AST::Expression result(AST::Error{});
     switch (cur_token) {
         case tok_identifier:
             return parse_identifier();
@@ -132,8 +133,12 @@ AST::Expression Parser::parse_primary(void) {
             return parse_number();
         case '(':
             return parse_parens();
+        case tok_if:
+            return parse_if_then_else();
         default:
-            return log_error("Unknown token when expecting expression.");
+            result = log_error("Unknown token when expecting expression.");
+            assert(AST::is_err(result));
+            return result;
     }
 }
 
@@ -175,6 +180,30 @@ AST::Expression Parser::parse_binop_rhs(int prec, AST::Expression lhs) {
     }
 }
 
+AST::Expression Parser::parse_if_then_else(void){
+    /* Shift "if". */
+    shift_token();
+
+    auto cond = parse_expression();
+    if (AST::is_err(cond)) return cond;
+    if (cur_token != tok_then) return log_error("expected \"then\".");
+
+    /* Shift "then". */
+    shift_token();
+    auto then = parse_expression();
+    if (AST::is_err(then)) return then;
+    if (cur_token != tok_else) return log_error("expected \"else\".");
+
+    /* Shift "else". */
+    shift_token();
+    auto _else = parse_expression();
+    if (AST::is_err(_else)) return _else;
+
+    return std::make_unique<AST::IfThenElse>(std::move(cond),
+                                             std::move(then),
+                                             std::move(_else));
+}
+
 std::unique_ptr<AST::FunctionPrototype> Parser::parse_prototype(void) {
     if (cur_token != tok_identifier)
         return log_error_p("Expected function name in prototype");
@@ -198,33 +227,36 @@ std::unique_ptr<AST::FunctionPrototype> Parser::parse_prototype(void) {
     return std::make_unique<AST::FunctionPrototype>(fname, std::move(args));
 }
 
-std::unique_ptr<AST::FunctionDefinition> Parser::parse_definition(void) {
+AST::Declaration Parser::parse_definition(void) {
     /* Shift "def". */
     shift_token();
     /* Get the prototype. */
     auto proto = parse_prototype();
-    if (!proto) return nullptr;
+    if (!proto) return AST::Error{};
 
     /* Get the body. */
     auto body = parse_expression();
-    if (AST::is_err(body)) return nullptr;
+    if (AST::is_err(body)) return AST::Error{};
 
 
     return std::make_unique<AST::FunctionDefinition>(std::move(proto),
                                                      std::move(body));
 }
 
-std::unique_ptr<AST::FunctionPrototype> Parser::parse_extern(void) {
+AST::Declaration Parser::parse_extern(void) {
     /* Shift "extern". */
     shift_token();
     /* Other than that, an extern is a normal prototype.*/
-    return parse_prototype();
+    auto result = parse_prototype();
+
+    if (!result) return AST::Error{};
+    return std::move(result);
 }
 
-std::unique_ptr<AST::FunctionDefinition> Parser::parse_top_level(void) {
+AST::Declaration Parser::parse_top_level(void) {
     /* Parse the expression. */
     auto expr = parse_expression();
-    if (AST::is_err(expr)) return nullptr;
+    if (AST::is_err(expr)) return AST::Error{};
 
     /* Turn it into the body of an anonymous prototype. */
     auto proto =
@@ -238,6 +270,7 @@ AST::Declaration Parser::parse(void) {
     AST::Declaration result;
     switch (cur_token) {
     case tok_eof:
+        std::cerr << "Hit end of file." << std::endl;
         return AST::Error{};
     case ';': // ignore top-level semicolons.
         shift_token();
@@ -253,65 +286,11 @@ AST::Declaration Parser::parse(void) {
         break;
     }
 
-    if (AST::is_err(result)) shift_token();
+    if (AST::is_err(result)) {
+        shift_token();
+    }
 
     return result;
-}
-
-/*****************************************************************************
- * Demo stuff.
- */
-
-void Parser::handle_definition(void) {
-    if (parse_definition()) {
-    } else {
-        // Skip token for error recovery.
-        shift_token();
-    }
-}
-
-void Parser::handle_extern(void) {
-    if (parse_extern()) {
-    } else {
-        // Skip token for error recovery.
-        shift_token();
-    }
-}
-
-void Parser::handle_top_level(void) {
-    // Evaluate a top-level expression into an anonymous function.
-    if (parse_top_level()) {
-    } else {
-        // Skip token for error recovery.
-        shift_token();
-    }
-}
-
-void Parser::main_loop() {
-    while (true) {
-        std::cerr << "ready> ";
-        switch (cur_token) {
-        case tok_eof:
-            return;
-        case ';':
-            shift_token();
-            break;
-        case tok_def:
-            handle_definition();
-            break;
-        case tok_extern:
-            handle_extern();
-            break;
-        default:
-            handle_top_level();
-            break;
-        }
-    }
-}
-
-void Parser::demo(void) {
-    std::cerr << "ready> ";
-    main_loop();
 }
 
 bool Parser::reached_end(void) const {

@@ -21,9 +21,7 @@ static const int OBJFILE_MODE_BLAZEIT = 420;
  */
 void handle_input(Kaleidoscope::Parser &p, Kaleidoscope::CodeGenerator &c) {
     auto e = p.parse();
-    if (!Kaleidoscope::AST::is_err(e)) {
-        boost::apply_visitor(c, e);
-    }
+    boost::apply_visitor(c, e);
 }
 
 /**
