@@ -119,9 +119,8 @@ AST::Expression Parser::parse_identifier(void) {
     // Eat the ')'.
     shift_token();
 
-    return AST::Expression(std::make_unique<AST::FunctionCall>(
-            lexer.get_identifier(), std::move(args)
-        ));
+    return std::make_unique<AST::FunctionCall>(id,
+                                               std::move(args));
 }
 
 AST::Expression Parser::parse_primary(void) {
