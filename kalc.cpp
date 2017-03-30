@@ -41,10 +41,15 @@ int main(int argc, char **argv) {
     pos.add("in", -1);
 
     opt::variables_map opt_map;
-    opt::store(opt::command_line_parser(argc, argv).options(desc)
-                                                   .positional(pos)
-                                                   .run(),
-               opt_map);
+    try {
+        opt::store(opt::command_line_parser(argc, argv).options(desc)
+                                                       .positional(pos)
+                                                       .run(),
+                   opt_map);
+    } catch (opt::error) {
+        std::cerr << desc << std::endl;
+        return 1;
+    }
     opt::notify(opt_map);
 
     /* If the user did good, */
