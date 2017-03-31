@@ -9,16 +9,16 @@ int Lexer::get_token(void) {
 
     // Skip any whitespace.
     while (isspace(last_char)) {
-        last_char = input->get();
+        last_char = get_char();
     }
 
     /* An identifier starts with an alphanumeric character, */
     if (isalpha(last_char)) {
         identifier = last_char;
         /* and continues with alphanumeric characters. */
-        for (last_char = input->get();
+        for (last_char = get_char();
              isalnum(last_char);
-             last_char = input->get()) {
+             last_char = get_char()) {
             /* Collect the name of the identifier. */
             identifier += last_char;
         }
@@ -43,7 +43,7 @@ int Lexer::get_token(void) {
         std::string number_string;
         do {
             number_string += last_char;
-            last_char = input->get();
+            last_char = get_char();
         } while (isdigit(last_char) || last_char == '.');
         /* Store the lexed number as a float. */
         number = strtod(number_string.c_str(), 0);
@@ -53,7 +53,7 @@ int Lexer::get_token(void) {
     /* Skip comments until the end of the line. */
     if (last_char == '#') {
         do {
-            last_char = input->get();
+            last_char = get_char();
         } while (last_char != EOF && last_char != '\n' && last_char != '\r');
 
         if (last_char != EOF) {
@@ -65,8 +65,21 @@ int Lexer::get_token(void) {
 
     /* If unknown, just return the character. */
     int this_char = last_char;
-    last_char = input->get();
+    last_char = get_char();
     return this_char;
+}
+
+int Lexer::get_char(void) {
+    int next = input->get();
+
+    if (next == '\n' || next == '\r') {
+        ++lineno;
+        charno = 0;
+    } else {
+        ++charno;
+    }
+
+    return next;
 }
 
 }

@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "AST.hh"
+#include "Error.hh"
 #include "Lexer.hh"
 
 namespace Kaleidoscope {
@@ -17,6 +18,7 @@ private:
 
     int shift_token(void);
     int get_token_precedence(void) const;
+    void raise(std::string msg);
 
     AST::NumberLiteral parse_number(void);
     AST::Expression parse_parens(void);
@@ -34,7 +36,7 @@ private:
     AST::Declaration parse_top_level(void);
 
 public:
-    Parser(std::istream *input = &std::cin);
+    Parser(std::string input);
 
     /**
      * @brief Parse and return a top-level AST node.

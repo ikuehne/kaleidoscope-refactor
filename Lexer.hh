@@ -1,7 +1,9 @@
 #pragma once
 
+#include <fstream>
 #include <istream>
 #include <iostream>
+#include <memory>
 #include <string>
 
 namespace Kaleidoscope {
@@ -52,9 +54,10 @@ public:
      *
      * @param input Input stream to lex.
      */
-    inline Lexer(std::istream *input = &std::cin) {
-        this->input = input;
-        identifier = std::string();
+    inline Lexer(std::string fname)
+        : identifier(), number(0.0), lineno(0),
+          charno(0) {
+        input = std::make_unique<std::ifstream>(fname);
     }
 
     /**
@@ -68,20 +71,27 @@ public:
      */
     int get_token(void);
 
+    int get_lineno(void) { return lineno; }
+    int get_charno(void) { return charno; }
+
     /**
      * @brief Return the last identifier lexed with `get_token`.
      */
-    inline std::string get_identifier(void) const { return identifier; };
+    inline std::string get_identifier(void) const { return identifier; }
 
     /**
      * @brief Return the last number lexed with `get_token`.
      */
-    inline double get_number(void) const { return number; };
+    inline double get_number(void) const { return number; }
 
 private:
+    int get_char(void);
+
     std::string identifier;
     double number;
-    std::istream *input;
+    std::unique_ptr<std::istream> input;
+    int lineno;
+    int charno;
 };
 
 }

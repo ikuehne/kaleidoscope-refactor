@@ -59,9 +59,9 @@ int main(int argc, char **argv) {
         /* Get a code generator. */
         Kaleidoscope::CodeGenerator codegen("Kaleidoscope module");
         /* Open the source file. */
-        std::ifstream infile(opt_map["in"].as<std::string>());
+        std::string infile(opt_map["in"].as<std::string>());
         /* Construct a parser on that file. */
-        Kaleidoscope::Parser parser(&infile);
+        Kaleidoscope::Parser parser(infile);
         /* Pull ASTs out of the parser */
         while (true) {
             /* until we hit EOF. */

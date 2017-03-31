@@ -46,8 +46,7 @@ static std::unique_ptr<AST::FunctionPrototype> log_error_p(const char *s) {
     return nullptr;
 }
 
-Parser::Parser(std::istream *input) {
-    lexer = Lexer(input);
+Parser::Parser(std::string input): lexer(input) {
     shift_token();
 }
 
