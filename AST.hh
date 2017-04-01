@@ -12,6 +12,8 @@
 #include <boost/variant.hpp>
 #include <llvm/IR/Value.h>
 
+#include "Error.hh"
+
 /* Architectural note: AST classes are returned by the parser, and then
  * visited by the code-generator. */
 
@@ -25,17 +27,15 @@ namespace Kaleidoscope {
  */
 namespace AST {
 
-struct Error {
-
-};
+struct Error { };
 
 /**
  * @brief Floating-point literals.
  */
 struct NumberLiteral {
     double val;
-
-    NumberLiteral(double val): val(val) {}
+    ErrorInfo info;
+    NumberLiteral(double val, ErrorInfo info): val(val), info(info) {}
 };
 
 /**
@@ -45,10 +45,10 @@ struct NumberLiteral {
  */
 struct VariableName {
     std::string name;
-    VariableName(std::string name): name(name) {}
+    ErrorInfo info;
+    VariableName(std::string name, ErrorInfo info): name(name), info(info) {}
 };
 
-/* Forward-declare these to prevent recursive type. */
 struct BinaryOp;
 struct FunctionCall;
 struct IfThenElse;
@@ -62,12 +62,9 @@ typedef boost::variant< NumberLiteral,
                         std::unique_ptr<BinaryOp>,
                         std::unique_ptr<FunctionCall>,
                         std::unique_ptr<IfThenElse>,
-                        std::unique_ptr<ForLoop>,
-                        Error > Expression;
+                        std::unique_ptr<ForLoop> > Expression;
 
-inline bool is_err(const Expression &expr) {
-    return expr.which() == 6;
-}
+ErrorInfo get_info(const Expression &);
 
 /**
  * @brief Binary operations of the form `expression op expression`.
@@ -76,9 +73,9 @@ struct BinaryOp {
     char op;
     Expression lhs;
     Expression rhs;
-    BinaryOp(char op, Expression lhs,
-                      Expression rhs)
-        : op(op), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
+    ErrorInfo info;
+    BinaryOp(char op, Expression lhs, Expression rhs, ErrorInfo info)
+        : op(op), lhs(std::move(lhs)), rhs(std::move(rhs)), info(info) {}
 };
 
 /**
@@ -87,9 +84,11 @@ struct BinaryOp {
 struct FunctionCall {
     std::string fname;
     std::vector<Expression> args;
+    ErrorInfo info;
     FunctionCall(std::string fname,
-                 std::vector<Expression> args)
-        : fname(fname), args(std::move(args)) {}
+                 std::vector<Expression> args,
+                 ErrorInfo info)
+        : fname(fname), args(std::move(args)), info(info) {}
 };
 
 /**
@@ -97,11 +96,12 @@ struct FunctionCall {
  */
 struct IfThenElse {
     Expression cond, then, else_;
+    ErrorInfo info;
 
-    IfThenElse(Expression cond, Expression then, Expression else_)
-        : cond(std::move(cond)),
-          then(std::move(then)),
-          else_(std::move(else_)) {}
+    IfThenElse(Expression cond,  Expression then,
+               Expression else_, ErrorInfo info)
+        : cond(std::move(cond)),  then(std::move(then)),
+          else_(std::move(else_)), info(info) {}
 };
 
 /**
@@ -110,13 +110,16 @@ struct IfThenElse {
 struct ForLoop {
     std::string index_var;
     Expression start, end, step, body;
+    ErrorInfo info;
 
     ForLoop(std::string index_var,
             Expression start, Expression end,
-            Expression step,  Expression body)
+            Expression step,  Expression body,
+            ErrorInfo info)
         : index_var(index_var),
-                    start(std::move(start)), end(std::move(end)),
-                    step(std::move(step)),   body(std::move(body)) {}
+          start(std::move(start)), end(std::move(end)),
+          step(std::move(step)),   body(std::move(body)),
+          info(info) {}
 };
 
 struct FunctionPrototype;

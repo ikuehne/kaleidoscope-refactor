@@ -14,14 +14,8 @@ CodeGenerator::CodeGenerator(std::string name,
 
 CodeGenerator::~CodeGenerator() = default;
 
-llvm::Function *CodeGenerator::operator()
-       (const std::unique_ptr<AST::FunctionPrototype> &func) {
-    return (*pimpl)(func);
-}
-
-llvm::Function *CodeGenerator::operator()
-            (const std::unique_ptr<AST::FunctionDefinition> &f) {
-    return (*pimpl)(f);
+llvm::Function *CodeGenerator::operator()(const AST::Declaration &decl) {
+    return boost::apply_visitor(*pimpl, decl);
 }
 
 void CodeGenerator::emit_ir(std::ostream &out) {

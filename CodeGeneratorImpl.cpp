@@ -29,6 +29,10 @@ namespace Kaleidoscope {
  * Utilities.
  */
 
+[[noreturn]] static void _throw(std::string msg, ErrorInfo info) {
+    throw Error("Codegen error", msg, info);
+}
+
 static llvm::Value *log_error(std::string str) {
     std::cerr << "Kaleidoscope::CodeGenerator::log_error: "
               << str << std::endl;
@@ -55,7 +59,9 @@ llvm::Value *ExpressionGenerator::operator()(const AST::NumberLiteral &num) {
 llvm::Value *ExpressionGenerator::operator()(const AST::VariableName &var) {
     /* Just look up the value corresponding to this name, and return that. */
     auto result = names[var.name];
-    if (!result) return log_error("Unknown variable name");
+    if (!result) {
+        _throw("unknown variable name (" + var.name + ")", var.info);
+    }
     return result;
 }
 
@@ -81,7 +87,8 @@ llvm::Value *ExpressionGenerator::operator()
         return builder.CreateUIToFP(
                 l, llvm::Type::getDoubleTy(context), "booltmp");
     default:
-        return log_error("invalid binary operator.");
+        _throw(std::string("invalid binary operator (")
+             + op->op + ")", op->info);
     }
 }
 
@@ -89,12 +96,14 @@ llvm::Value *ExpressionGenerator::operator()(
         const std::unique_ptr<AST::FunctionCall> &call) {
 	/* Look up the name in the global module table. */
     llvm::Function *llvm_func = module.getFunction(call->fname);
-	if (!llvm_func)
-		return log_error("Unknown function referenced: " + call->fname);
+	if (!llvm_func) {
+        _throw("unknown function referenced: " + call->fname, call->info);
+    }
 
     /* Log argument mismatch error. */
-    if (llvm_func->arg_size() != call->args.size())
-        return log_error("Incorrect # arguments passed");
+    if (llvm_func->arg_size() != call->args.size()) {
+        _throw("incorrect # of arguments passed", call->info);
+    }
 
     std::vector<llvm::Value *> llvm_args;
     for (unsigned i = 0; i != call->args.size(); ++i) {

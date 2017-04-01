@@ -19,60 +19,59 @@ static const std::map<char, int> BINOP_PRECEDENCE {
     {'/', 40},
 };
 
+static ErrorInfo merge(ErrorInfo start, ErrorInfo end) {
+    return ErrorInfo(start.filename,
+                     start.charno_start, start.lineno_start,
+                     end.charno_end,     end.lineno_end);
+}
+
+[[noreturn]] static void _throw(std::string msg, ErrorInfo annotation) {
+    throw Error("Parser error", msg, annotation);
+}
+
 /* Look up the precedence of the current token. */
 int Parser::get_token_precedence(void) const {
-    if (!isascii(cur_token))
+    if (!isascii(cur_token.second))
         return -1;
 
     /* Can't just use operator[] because `BINOP_PRECEDENCE` is `const`. */
-    if (BINOP_PRECEDENCE.count(cur_token) == 0) return -1;
+    if (BINOP_PRECEDENCE.count(cur_token.second) == 0) return -1;
 
     // Make sure it's a declared binop.
-    int result = BINOP_PRECEDENCE.find(cur_token)->second;
+    int result = BINOP_PRECEDENCE.find(cur_token.second)->second;
 
     return result;
 }
 
-/* Log an error to stderr, and return an error code. */
-static AST::Expression log_error(const char *str) {
-    std::cerr << "Kaleidoscope::Parser::log_error: "
-              << str << std::endl;
-    return AST::Error{};
-}
-
-/* Log an error to stderr, and return an error code. */
-static std::unique_ptr<AST::FunctionPrototype> log_error_p(const char *s) {
-    log_error(s);
-    return nullptr;
-}
-
-Parser::Parser(std::string input): lexer(input) {
+Parser::Parser(std::string input)
+    : lexer(input), cur_token(ErrorInfo(nullptr, 0, 0, 0, 0), 0) {
     shift_token();
 }
 
 int Parser::shift_token(void) {
     /* `cur_token` gives us 1 token of lookahead. */
     cur_token = lexer.get_token();
-    return cur_token;
+    return cur_token.second;
 }
 
-AST::NumberLiteral Parser::parse_number(void) {
-    AST::NumberLiteral result(lexer.get_number());
+AST::Expression Parser::parse_number(void) {
+    AST::NumberLiteral result(lexer.get_number(), cur_token.first);
     /* Advance the lexer. */
     shift_token();
     return result;
 }
 
 AST::Expression Parser::parse_parens(void) {
+    auto start = cur_token.first;
     /* Shift the opening paren. */
   	shift_token();
     /* Get the body of the expression. */
     auto contents = parse_expression();
 
-    if (AST::is_err(contents)) return contents;
-
     /* If it didn't end in a close paren, error. */
-    if (cur_token != ')') return log_error("expected ')'");
+    if (cur_token.second != ')')  {
+        _throw("expected ')'", merge(start, cur_token.first));
+    }
 
     /* Shift the closing paren. */
     shift_token();
@@ -80,6 +79,8 @@ AST::Expression Parser::parse_parens(void) {
 }
 
 AST::Expression Parser::parse_identifier(void) {
+
+    auto start = cur_token.first;
     /* Get the identifier. */
     std::string id = lexer.get_identifier();
 
@@ -87,28 +88,26 @@ AST::Expression Parser::parse_identifier(void) {
     shift_token();
 
     /* Unless this is a function call, */
-    if (cur_token != '(')
+    if (cur_token.second != '(') {
         /* it's a variable. */
-        return id;
+        return AST::VariableName(id, merge(start, cur_token.first));
+    }
 
     /* If it is a function call, shift the opening paren.*/
     shift_token();
     /* Collect an argument vector. */
     std::vector<AST::Expression> args;
     /* (unless there are no arguments). */
-    if (cur_token != ')') {
+    if (cur_token.second != ')') {
         while (1) {
             AST::Expression arg(parse_expression());
-            if (!AST::is_err(arg)) {
-                args.push_back(std::move(arg));
-            } else {
-                return arg;
-            }
+            args.push_back(std::move(arg));
 
-            if (cur_token == ')') break;
+            if (cur_token.second == ')') break;
 
-            if (cur_token != ',') {
-                return log_error("Expected ')' or ',' in argument list");
+            if (cur_token.second != ',') {
+                _throw("expected ')' or ',' in argument list",
+                       merge(start, cur_token.first));
             }
 
             shift_token();
@@ -118,13 +117,12 @@ AST::Expression Parser::parse_identifier(void) {
     // Eat the ')'.
     shift_token();
 
-    return std::make_unique<AST::FunctionCall>(id,
-                                               std::move(args));
+    return std::make_unique<AST::FunctionCall>(
+            id, std::move(args), merge(start, cur_token.first));
 }
 
 AST::Expression Parser::parse_primary(void) {
-    AST::Expression result(AST::Error{});
-    switch (cur_token) {
+    switch (cur_token.second) {
         case tok_identifier:
             return parse_identifier();
         case tok_number:
@@ -136,20 +134,17 @@ AST::Expression Parser::parse_primary(void) {
         case tok_for:
             return parse_for_loop();
         default:
-            result = log_error("Unknown token when expecting expression.");
-            assert(AST::is_err(result));
-            return result;
+            _throw("unkown token when expecting expression", cur_token.first);
     }
 }
 
 AST::Expression Parser::parse_expression(void) {
     auto lhs = parse_primary();
-    if (AST::is_err(lhs)) return lhs;
     return parse_binop_rhs(0, std::move(lhs));
 }
 
 AST::Expression Parser::parse_binop_rhs(int prec, AST::Expression lhs) {
-
+    auto start = cur_token.first;
     while (true) {
         int op_prec = get_token_precedence();
 
@@ -158,12 +153,11 @@ AST::Expression Parser::parse_binop_rhs(int prec, AST::Expression lhs) {
         if (op_prec < prec) return lhs;
 
         /* Save and shift the current token. */
-        int op = cur_token;
+        int op = cur_token.second;
         shift_token();
 
         /* Parse the right-hand side. */
         auto rhs = parse_primary();
-        if (AST::is_err(rhs)) return rhs;
 
         /* Check the precedence of the next operator.  (Note that if the next
          * token is *not* an operator, `get_token_precedence` will return -1).
@@ -171,101 +165,112 @@ AST::Expression Parser::parse_binop_rhs(int prec, AST::Expression lhs) {
         int next_prec = get_token_precedence();
         if (op_prec < next_prec) {
             rhs = parse_binop_rhs(op_prec + 1, std::move(rhs));
-
-            if (AST::is_err(rhs)) return rhs;
         }
 
-        lhs = std::make_unique<AST::BinaryOp>(op, std::move(lhs),
-                                                  std::move(rhs));
+        auto info = merge(AST::get_info(lhs), AST::get_info(rhs));
+        lhs = std::make_unique<AST::BinaryOp>(
+                op, std::move(lhs), std::move(rhs), info);
     }
 }
 
 AST::Expression Parser::parse_if_then_else(void){
+    auto start = cur_token.first;
     /* Shift "if". */
     shift_token();
 
     auto cond = parse_expression();
-    if (AST::is_err(cond)) return cond;
-    if (cur_token != tok_then) return log_error("expected \"then\".");
+    if (cur_token.second != tok_then) {
+        _throw("expected \"then\"", merge(start, cur_token.first));
+    }
 
     /* Shift "then". */
     shift_token();
     auto then = parse_expression();
-    if (AST::is_err(then)) return then;
-    if (cur_token != tok_else) return log_error("expected \"else\".");
+
+    if (cur_token.second != tok_else) {
+        _throw("expected \"else\"", merge(start, cur_token.first));
+    }
 
     /* Shift "else". */
     shift_token();
     auto _else = parse_expression();
-    if (AST::is_err(_else)) return _else;
 
-    return std::make_unique<AST::IfThenElse>(std::move(cond),
-                                             std::move(then),
-                                             std::move(_else));
+    return std::make_unique<AST::IfThenElse>(
+                std::move(cond), std::move(then),
+                std::move(_else), merge(start, cur_token.first));
 }
 
 AST::Expression Parser::parse_for_loop(void) {
+    auto start = cur_token.first;
     /* Shift "for". */
     shift_token();
 
-    if (cur_token != tok_identifier) {
-        return log_error("expected identifier as loop index.");
+    if (cur_token.second != tok_identifier) {
+        _throw("expected identifier as loop index",
+               merge(start, cur_token.first));
     }
 
     std::string idx = lexer.get_identifier();
 
     shift_token();
 
-    if (cur_token != '=') return log_error("expected '=' in loop.");
+    if (cur_token.second != '=') {
+        _throw("expected '=' in loop", merge(start, cur_token.first));
+    }
 
     shift_token();
 
-    auto start = parse_expression();
+    auto init = parse_expression();
 
-    if (cur_token != ',') {
-        return log_error("expected ',' between loop elements.");
+    if (cur_token.second != ',') {
+        _throw("expected ',' between loop elements",
+               merge(start, cur_token.first));
     }
 
     shift_token();
 
     auto term = parse_expression();
 
-    AST::Expression incr(AST::NumberLiteral(1.0));
-    if (cur_token == ',') {
+    AST::Expression incr(AST::NumberLiteral(1.0, cur_token.first));
+    if (cur_token.second == ',') {
         shift_token();
         incr = parse_expression();
     }
 
-    if (cur_token != tok_in) {
-        return log_error("Expected 'in' after for loop.");
+    if (cur_token.second != tok_in) {
+        _throw("expected \"in\" after for loop",
+               merge(start, cur_token.first));
     }
 
     shift_token();
 
     auto body = parse_expression();
 
-    return std::make_unique<AST::ForLoop>(idx, std::move(start),
-                                               std::move(term),
-                                               std::move(incr),
-                                               std::move(body));
+    return std::make_unique<AST::ForLoop>(
+            idx, std::move(init), std::move(term),
+            std::move(incr), std::move(body), merge(start, cur_token.first));
 }
 
 std::unique_ptr<AST::FunctionPrototype> Parser::parse_prototype(void) {
-    if (cur_token != tok_identifier)
-        return log_error_p("Expected function name in prototype");
+    auto start = cur_token.first;
+    if (cur_token.second != tok_identifier) {
+        _throw("expected function name in prototype", start);
+    }
 
     std::string fname = lexer.get_identifier();
     shift_token();
 
-    if (cur_token != '(')
-        return log_error_p("Expected '(' in prototype");
+    if (cur_token.second != '(') {
+        _throw("expected '(' in prototype", cur_token.first);
+    }
 
     /* Read the list of argument names. */
     std::vector<std::string> args;
     while (shift_token() == tok_identifier)
         args.push_back(lexer.get_identifier());
-    if (cur_token != ')')
-        return log_error_p("Expected ')' in prototype");
+    if (cur_token.second != ')') {
+        _throw("expected ')' in prototype", cur_token.first);
+    }
 
     /* Shift the closing parenthesis. */
     shift_token();
@@ -282,8 +287,6 @@ AST::Declaration Parser::parse_definition(void) {
 
     /* Get the body. */
     auto body = parse_expression();
-    if (AST::is_err(body)) return AST::Error{};
-
 
     return std::make_unique<AST::FunctionDefinition>(std::move(proto),
                                                      std::move(body));
@@ -302,7 +305,6 @@ AST::Declaration Parser::parse_extern(void) {
 AST::Declaration Parser::parse_top_level(void) {
     /* Parse the expression. */
     auto expr = parse_expression();
-    if (AST::is_err(expr)) return AST::Error{};
 
     /* Turn it into the body of an anonymous prototype. */
     auto proto =
@@ -314,33 +316,34 @@ AST::Declaration Parser::parse_top_level(void) {
 
 AST::Declaration Parser::parse(void) {
     AST::Declaration result;
-    switch (cur_token) {
-    case tok_eof:
-        std::cerr << "Hit end of file." << std::endl;
-        return AST::Error{};
-    case ';': // ignore top-level semicolons.
+    try {
+        switch (cur_token.second) {
+        case tok_eof:
+            std::cerr << "Hit end of file." << std::endl;
+            return AST::Error{};
+        case ';': // ignore top-level semicolons.
+            shift_token();
+            break;
+        case tok_def:
+            result = parse_definition();
+            break;
+        case tok_extern:
+            result = parse_extern();
+            break;
+        default:
+            result = parse_top_level();
+            break;
+        }
+    } catch (Error) {
         shift_token();
-        break;
-    case tok_def:
-        result = parse_definition();
-        break;
-    case tok_extern:
-        result = parse_extern();
-        break;
-    default:
-        result = parse_top_level();
-        break;
-    }
-
-    if (AST::is_err(result)) {
-        shift_token();
+        throw;
     }
 
     return result;
 }
 
 bool Parser::reached_end(void) const {
-    return cur_token == tok_eof;
+    return cur_token.second == tok_eof;
 }
 
 }

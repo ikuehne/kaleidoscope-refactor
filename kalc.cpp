@@ -1,3 +1,4 @@
+#include <cassert>
 #include <fcntl.h>
 #include <fstream>
 #include <iostream>
@@ -20,8 +21,12 @@ static const int OBJFILE_MODE_BLAZEIT = 420;
  *        visit it.
  */
 void handle_input(Kaleidoscope::Parser &p, Kaleidoscope::CodeGenerator &c) {
-    auto e = p.parse();
-    boost::apply_visitor(c, e);
+    try {
+        auto e = p.parse();
+        c(e);
+    } catch (Kaleidoscope::Error e) {
+        e.emit(std::cerr);
+    }
 }
 
 /**

@@ -34,13 +34,7 @@ public:
      */
     /**@{*/
 
-    llvm::Function *operator()
-        (const std::unique_ptr<AST::FunctionPrototype> &);
-    llvm::Function *operator()
-        (const std::unique_ptr<AST::FunctionDefinition> &);
-    llvm::Function *operator()(const AST::Error &) {
-        return nullptr;
-    }
+    llvm::Function *operator()(const AST::Declaration &);
 
     /**@}*/
 

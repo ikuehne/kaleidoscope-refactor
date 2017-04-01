@@ -13,14 +13,14 @@ namespace Kaleidoscope {
  */
 class Parser {
 private:
-    int cur_token;
     Lexer lexer;
+    Annotated<int> cur_token;
 
     int shift_token(void);
     int get_token_precedence(void) const;
     void raise(std::string msg);
 
-    AST::NumberLiteral parse_number(void);
+    AST::Expression parse_number(void);
     AST::Expression parse_parens(void);
     AST::Expression parse_identifier(void);
     AST::Expression parse_binop_rhs(int prec, AST::Expression lhs);

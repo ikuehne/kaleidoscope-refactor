@@ -6,6 +6,8 @@
 #include <memory>
 #include <string>
 
+#include "Error.hh"
+
 namespace Kaleidoscope {
 
 /**
@@ -54,10 +56,11 @@ public:
      *
      * @param input Input stream to lex.
      */
-    inline Lexer(std::string fname)
+    inline Lexer(std::string f)
         : identifier(), number(0.0), lineno(0),
-          charno(0) {
-        input = std::make_unique<std::ifstream>(fname);
+          charno(0), old_lineno(0), old_charno(0) {
+        fname = std::make_shared<std::string>(f);
+        input = std::make_unique<std::ifstream>(f);
     }
 
     /**
@@ -69,10 +72,7 @@ public:
      * @return A character 0-255 if an unknown character, otherwise a member
      *         of Kaleidoscope::Token.
      */
-    int get_token(void);
-
-    int get_lineno(void) { return lineno; }
-    int get_charno(void) { return charno; }
+    Annotated<int> get_token(void);
 
     /**
      * @brief Return the last identifier lexed with `get_token`.
@@ -89,7 +89,10 @@ private:
 
     std::string identifier;
     double number;
+    std::shared_ptr<std::string> fname;
     std::unique_ptr<std::istream> input;
+    int old_lineno;
+    int old_charno;
     int lineno;
     int charno;
 };
