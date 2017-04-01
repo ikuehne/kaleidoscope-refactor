@@ -20,12 +20,14 @@ static const int OBJFILE_MODE_BLAZEIT = 420;
  * @brief Pull a single AST out of the parser, and have the code generator
  *        visit it.
  */
-void handle_input(Kaleidoscope::Parser &p, Kaleidoscope::CodeGenerator &c) {
+bool handle_input(Kaleidoscope::Parser &p, Kaleidoscope::CodeGenerator &c) {
     try {
         auto e = p.parse();
         c(e);
+        return true;
     } catch (Kaleidoscope::Error e) {
         e.emit(std::cerr);
+        return false;
     }
 }
 
@@ -67,12 +69,15 @@ int main(int argc, char **argv) {
         std::string infile(opt_map["in"].as<std::string>());
         /* Construct a parser on that file. */
         Kaleidoscope::Parser parser(infile);
+        bool successful;
         /* Pull ASTs out of the parser */
         while (true) {
             /* until we hit EOF. */
             if (parser.reached_end()) break;
-            handle_input(parser, codegen);
+            if (!handle_input(parser, codegen)) successful = false;
         }
+
+        if (!successful) return 2;
 
         if (opt_map.count("obj")) {
             /* Open the output file (LLVM's stream formats are weird, so we
