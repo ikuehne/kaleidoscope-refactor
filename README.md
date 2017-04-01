@@ -15,6 +15,7 @@ Some major changes from the source code listing in the tutorial:
  * Static instead of JIT compilation.
  * More sensible command-line interface.
  * Better use of C++11 and C++14 features.
+ * Helpful error messages with coloring and source snippets.
 
 Building
 --------
@@ -96,3 +97,20 @@ $ ./test
 9th fibonacci:	34
 10th fibonacci:	55
 ```
+
+To show `kalc`'s nice error printing, add some problems to fibonacci.kal:
+
+```
+def if
+
+def fibonacciaux(x1 x2 n)
+    if (n < 0.5) then x1
+                 else fibonacciaux(x2, x1 + x2, n - 1)
+
+def fibonacci(n) fibonacciaux(0, 1, n)
+```
+
+When we attempt to compile this, `kalc` gives us nicely formatted error
+messages:
+
+![errors](assets/error_demo.png)
