@@ -83,6 +83,9 @@ public:
     llvm::Function *operator()(const AST::Error &) {
         return nullptr;
     }
+
+    void run_passes(void);
+
     void emit_ir(std::ostream &);
     void emit_obj(int fd);
 

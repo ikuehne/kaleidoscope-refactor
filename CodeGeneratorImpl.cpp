@@ -17,6 +17,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Transforms/Scalar.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetOptions.h"
@@ -331,14 +332,33 @@ llvm::Function *CodeGeneratorImpl::operator()
     return nullptr;
 }
 
+void CodeGeneratorImpl::run_passes(void) {
+    auto fpm = std::make_unique<llvm::legacy::PassManager>();
+    // Iterated dominance frontier to convert most `alloca`s to SSA register
+    // accesses.
+    fpm->add(llvm::createPromoteMemoryToRegisterPass());
+    fpm->add(llvm::createInstructionCombiningPass());
+    // Reassociate expressions.
+    fpm->add(llvm::createReassociatePass());
+    // Eliminate Common SubExpressions.
+    fpm->add(llvm::createGVNPass());
+    // Simplify the control flow graph (deleting unreachable
+    // blocks, etc).
+    fpm->add(llvm::createCFGSimplificationPass());
+
+    fpm->run(*module);
+}
+
 void CodeGeneratorImpl::emit_ir(std::ostream &out) {
     llvm::raw_os_ostream llvm_out(out);
+    run_passes();
     module->print(llvm_out, nullptr);
 }
 
 void CodeGeneratorImpl::emit_obj(int out) {
     llvm::raw_fd_ostream llvm_out(out, false);
     llvm::legacy::PassManager pass;
+    run_passes();
     auto ft = llvm::TargetMachine::CGFT_ObjectFile;
 
     if (target->addPassesToEmitFile(pass, llvm_out, ft)) {
