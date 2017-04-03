@@ -39,6 +39,18 @@ static llvm::Value *log_error(std::string str) {
     return nullptr;
 }
 
+/** Create a new `alloca` in the entry block of the given function, allocating
+ *  a double-sized block of memory. */
+static llvm::AllocaInst *create_alloca(
+        llvm::Function *f, const std::string &name, llvm::LLVMContext &ctxt) {
+    /* Get a new builder adding instructions to the beginning of the function.
+    */
+    llvm::IRBuilder<> tmp(&f->getEntryBlock(), f->getEntryBlock().begin());
+    return tmp.CreateAlloca(llvm::Type::getDoubleTy(ctxt),
+                            0, name.c_str());
+}
+
+
 /*****************************************************************************
  * ExpressionGenerator implementation.
  */
@@ -57,12 +69,14 @@ llvm::Value *ExpressionGenerator::operator()(const AST::NumberLiteral &num) {
 }
 
 llvm::Value *ExpressionGenerator::operator()(const AST::VariableName &var) {
-    /* Just look up the value corresponding to this name, and return that. */
+    /* Just look up the value corresponding to this name (an address on the
+     * stack) */
     auto result = names[var.name];
     if (!result) {
         _throw("unknown variable name (" + var.name + ")", var.info);
     }
-    return result;
+    /* and load it. */
+    return builder.CreateLoad(result, var.name.c_str());
 }
 
 llvm::Value *ExpressionGenerator::operator()
@@ -172,7 +186,6 @@ llvm::Value *ExpressionGenerator::operator()(
 llvm::Value *ExpressionGenerator::operator()(
         const std::unique_ptr<AST::ForLoop> &loop) {
     llvm::Function *parent = builder.GetInsertBlock()->getParent();
-    auto &entry_bb = parent->back();
     auto *loop_bb = llvm::BasicBlock::Create(context, "loop", parent);
     auto *exit_bb = llvm::BasicBlock::Create(context, "loop_exit");
     auto start = boost::apply_visitor(*this, loop->start);
@@ -180,23 +193,31 @@ llvm::Value *ExpressionGenerator::operator()(
     builder.CreateBr(loop_bb);
 
     builder.SetInsertPoint(loop_bb);
-    auto loop_idx = builder.CreatePHI(llvm::Type::getDoubleTy(context),
-                                      2, loop->index_var);
-    loop_idx->addIncoming(start, &entry_bb);
-    auto *old_val = names[loop->index_var];
+    auto loop_idx_addr = create_alloca(parent, loop->index_var, context);
+    /* Store starting value into loop index. */
+    builder.CreateStore(start, loop_idx_addr);
+
+    auto old_val = names[loop->index_var];
     /* Delay adding the other incoming until we finish "loop". */
-    names[loop->index_var] = loop_idx;
+    names[loop->index_var] = loop_idx_addr;
+
     /* Discard value body evaluates to. */
     if (!boost::apply_visitor(*this, loop->body)) return nullptr;
+
+    /* Get the loop increment. */
     auto step = boost::apply_visitor(*this, loop->step);
-    auto next = builder.CreateFAdd(loop_idx, step);
+
+    /* Get the current value of the loop index. */
+    auto cur = builder.CreateLoad(loop_idx_addr);
+
+    /* Add them to get the next index. */
+    auto next = builder.CreateFAdd(cur, step);
+
+    /* Store that in the loop index. */
+    builder.CreateStore(next, loop_idx_addr);
 
     auto end = to_cond(boost::apply_visitor(*this, loop->end));
     if (!end) return nullptr;
-
-    auto *last_loop_bb = builder.GetInsertBlock();
-
-    loop_idx->addIncoming(next, last_loop_bb);
 
     builder.CreateCondBr(end, loop_bb, exit_bb);
 
@@ -294,7 +315,9 @@ llvm::Function *CodeGeneratorImpl::operator()
 
     names.clear();
     for (auto &arg: result->args()) {
-        names[arg.getName()] = &arg;
+        auto arg_addr = create_alloca(result, arg.getName(), context);
+        builder.CreateStore(&arg, arg_addr);
+        names[arg.getName()] = arg_addr;
     }
 
     if (llvm::Value *ret = boost::apply_visitor(expr_gen, f->body)) {

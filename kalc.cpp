@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
         std::string infile(opt_map["in"].as<std::string>());
         /* Construct a parser on that file. */
         Kaleidoscope::Parser parser(infile);
-        bool successful;
+        bool successful = true;
         /* Pull ASTs out of the parser */
         while (true) {
             /* until we hit EOF. */

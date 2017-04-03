@@ -7,6 +7,7 @@
 #include <boost/variant.hpp>
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
@@ -37,7 +38,7 @@ public:
     ExpressionGenerator(llvm::LLVMContext &context,
                         llvm::IRBuilder<> &builder,
                         llvm::Module &module,
-                        std::map<std::string, llvm::Value *> &names) 
+                        std::map<std::string, llvm::AllocaInst *> &names) 
         : context(context), builder(builder), module(module), names(names) {}
 
     /**
@@ -62,7 +63,7 @@ private:
     llvm::LLVMContext &context;
     llvm::IRBuilder<> &builder;
     llvm::Module &module;
-    std::map<std::string, llvm::Value *> &names;
+    std::map<std::string, llvm::AllocaInst *> &names;
 };
 
 /**
@@ -102,7 +103,7 @@ private:
     /**
      * @brief Current namespace.
      */
-    std::map<std::string, llvm::Value *> names;
+    std::map<std::string, llvm::AllocaInst *> names;
 
     /**
      * @brief The target machine (target triple + CPU information).
