@@ -82,6 +82,24 @@ llvm::Value *ExpressionGenerator::operator()(const AST::VariableName &var) {
 
 llvm::Value *ExpressionGenerator::operator()
        (const std::unique_ptr<AST::BinaryOp> &op) {
+    if (op->op == '=') {
+        auto *varname = boost::get<AST::VariableName>(&op->lhs);
+        if (!varname) {
+            _throw("left side of assignment must be lvalue",
+                   AST::get_info(op->lhs));
+        }
+        auto val = boost::apply_visitor(*this, op->rhs);
+        if (!val) return nullptr;
+
+        auto var = names[varname->name];
+        if (!var) {
+            _throw("unknown variable " + varname->name, varname->info);
+        }
+
+        builder.CreateStore(val, var);
+        return val;
+    }
+
     /* Get the LLVM values for left and right. */
     llvm::Value *l = boost::apply_visitor(*this, op->lhs);
     llvm::Value *r = boost::apply_visitor(*this, op->rhs);

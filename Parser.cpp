@@ -12,6 +12,7 @@ namespace Kaleidoscope {
 
 /** Associate operators with their precedence. */
 static const std::map<char, int> BINOP_PRECEDENCE {
+    {'=', 2},
     {'<', 10},
     {'+', 20},
     {'-', 20},
