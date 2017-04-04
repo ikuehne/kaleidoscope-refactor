@@ -19,6 +19,7 @@ struct InfoVisitor: public boost::static_visitor<ErrorInfo> {
     VISITP(FunctionCall)
     VISITP(IfThenElse)
     VISITP(ForLoop)
+    VISITP(LocalVar)
 };
 
 static const InfoVisitor visitor = InfoVisitor();

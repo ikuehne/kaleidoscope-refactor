@@ -26,6 +26,7 @@ private:
     AST::Expression parse_binop_rhs(int prec, AST::Expression lhs);
     AST::Expression parse_if_then_else(void);
     AST::Expression parse_for_loop(void);
+    AST::Expression parse_local_var(void);
     AST::Expression parse_primary(void);
     AST::Expression parse_expression(void);
 

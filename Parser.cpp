@@ -134,8 +134,11 @@ AST::Expression Parser::parse_primary(void) {
             return parse_if_then_else();
         case tok_for:
             return parse_for_loop();
+        case tok_var:
+            return parse_local_var();
         default:
-            _throw("unkown token when expecting expression", cur_token.first);
+            _throw("unknown token when expecting expression",
+                   cur_token.first);
     }
 }
 
@@ -250,6 +253,50 @@ AST::Expression Parser::parse_for_loop(void) {
     return std::make_unique<AST::ForLoop>(
             idx, std::move(init), std::move(term),
             std::move(incr), std::move(body), merge(start, cur_token.first));
+}
+
+AST::Expression Parser::parse_local_var(void) {
+    auto start = cur_token.first;
+    /* Shift the `var`. */
+    shift_token();
+
+    std::vector<std::pair<std::string, AST::Expression>> names;
+    
+    if (cur_token.second != tok_identifier) {
+        _throw("expected identifier for local variable name",
+               cur_token.first);
+    }
+
+    while (1) {
+        std::string name = lexer.get_identifier();
+        shift_token();
+        AST::Expression init = AST::NumberLiteral(0.0, cur_token.first);
+        if (cur_token.second == '=') {
+            shift_token();
+            init = parse_expression();
+        }
+
+        names.push_back(std::make_pair(name, std::move(init)));
+
+        if (cur_token.second != ',') break;
+        shift_token();
+        if (cur_token.second != tok_identifier) {
+            _throw("expected identifier list in local declaration",
+                   merge(start, cur_token.first));
+        }
+    }
+
+    if (cur_token.second != tok_in) {
+        _throw("expected 'in' after local variable declaration",
+               merge(start, cur_token.first));
+    }
+    shift_token();
+
+    auto body = parse_expression();
+    return std::make_unique<AST::LocalVar>(
+                std::move(names), std::move(body),
+                merge(start, cur_token.first));
+                    
 }
 
 std::unique_ptr<AST::FunctionPrototype> Parser::parse_prototype(void) {

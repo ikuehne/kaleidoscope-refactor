@@ -254,6 +254,38 @@ llvm::Value *ExpressionGenerator::operator()(
     return llvm::Constant::getNullValue(llvm::Type::getDoubleTy(context));
 }
 
+llvm::Value *ExpressionGenerator::operator()
+        (const std::unique_ptr<AST::LocalVar> &local) {
+    std::vector<llvm::AllocaInst *>old_bindings;
+    auto parent = builder.GetInsertBlock()->getParent();
+
+    for (auto &name: local->names) {
+        /* Store the old value. */
+        old_bindings.push_back(names[name.first]);
+        /* Allocate space for the new value. */
+        auto new_addr = create_alloca(parent, name.first, context);
+        /* Get the new value as an instruction. */
+        auto start = boost::apply_visitor(*this, name.second);
+        /* Store it in the space. */
+        builder.CreateStore(start, new_addr);
+        /* Put the address in the names map. */
+        names[name.first] = new_addr;
+    }
+
+    auto ret = boost::apply_visitor(*this, local->body);
+
+    for (unsigned i = 0; i < local->names.size(); ++i) {
+        auto &name = local->names[i];
+        if (old_bindings[i]) {
+            names[name.first] = old_bindings[i];
+        } else {
+            names.erase(name.first);
+        }
+    }
+
+    return ret; //std::move(ret);
+}
+
 /*****************************************************************************
  * CodeGeneratorImpl implementations.
  */
@@ -363,6 +395,8 @@ void CodeGeneratorImpl::run_passes(void) {
     // Simplify the control flow graph (deleting unreachable
     // blocks, etc).
     fpm->add(llvm::createCFGSimplificationPass());
+    llvm::raw_os_ostream ll_stderr(std::cerr);
+    llvm::verifyModule(*module, &ll_stderr);
 
     fpm->run(*module);
 }

@@ -43,6 +43,9 @@ enum Token {
 
     /** "in" part of for loop. */
     tok_in = -10,
+
+    /** Local variable declaration. */
+    tok_var = -11,
 };
 
 /**
@@ -57,8 +60,8 @@ public:
      * @param input Input stream to lex.
      */
     inline Lexer(std::string f)
-        : identifier(), number(0.0), lineno(0),
-          charno(0), old_lineno(0), old_charno(0) {
+        : identifier(), number(0.0), old_lineno(0),
+          old_charno(0), lineno(0), charno(0) {
         fname = std::make_shared<std::string>(f);
         input = std::make_unique<std::ifstream>(f);
     }

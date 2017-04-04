@@ -39,6 +39,7 @@ Annotated<int> Lexer::get_token(void) {
         /* one of the bits of a "for" loop, */
         if (identifier == "for")    return Annotated<int>(info, tok_for);
         if (identifier == "in")     return Annotated<int>(info, tok_in);
+        if (identifier == "var")    return Annotated<int>(info, tok_var);
         /* or an identifier. */
         return Annotated<int>(info, tok_identifier);
     }

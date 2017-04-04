@@ -53,6 +53,7 @@ struct BinaryOp;
 struct FunctionCall;
 struct IfThenElse;
 struct ForLoop;
+struct LocalVar;
 
 /**
  * @brief An expression: any of the various expression structs.
@@ -62,7 +63,8 @@ typedef boost::variant< NumberLiteral,
                         std::unique_ptr<BinaryOp>,
                         std::unique_ptr<FunctionCall>,
                         std::unique_ptr<IfThenElse>,
-                        std::unique_ptr<ForLoop> > Expression;
+                        std::unique_ptr<ForLoop>,
+                        std::unique_ptr<LocalVar> > Expression;
 
 ErrorInfo get_info(const Expression &);
 
@@ -120,6 +122,15 @@ struct ForLoop {
           start(std::move(start)), end(std::move(end)),
           step(std::move(step)),   body(std::move(body)),
           info(info) {}
+};
+
+struct LocalVar {
+    std::vector<std::pair<std::string, Expression>> names;
+    Expression body;
+    ErrorInfo info;
+    LocalVar(std::vector<std::pair<std::string, Expression>> names,
+             Expression body, ErrorInfo info)
+        : names(std::move(names)), body(std::move(body)), info(info) {}
 };
 
 struct FunctionPrototype;

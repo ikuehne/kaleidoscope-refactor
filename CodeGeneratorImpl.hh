@@ -54,6 +54,7 @@ public:
     llvm::Value *operator() (const std::unique_ptr<AST::FunctionCall> &);
     llvm::Value *operator() (const std::unique_ptr<AST::IfThenElse> &);
     llvm::Value *operator() (const std::unique_ptr<AST::ForLoop> &);
+    llvm::Value *operator() (const std::unique_ptr<AST::LocalVar> &);
 
     /**@}*/
 
